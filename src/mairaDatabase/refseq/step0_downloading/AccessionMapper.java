@@ -18,6 +18,29 @@ import mairaDatabase.utils.taxTree.TaxTree;
 
 public class AccessionMapper {
 
+	private enum AssemblyLevel {
+
+		COMPLETE("Complete genome", 0), CHROMOSOME("Chromosome", 1), SCAFFOLD("Scaffold", 2), CONTIG("Contig", 3),
+		UNKNOWN("Unknown", 3);
+
+		private String name;
+		private int priority;
+
+		private AssemblyLevel(String name, int priority) {
+			this.name = name;
+			this.priority = priority;
+		}
+
+		public String getName() {
+			return name;
+		}
+
+		public int getPriority() {
+			return priority;
+		}
+
+	}
+
 	private ResourceLoader rL = new ResourceLoader();
 
 	private List<File> faaFiles;
@@ -26,15 +49,18 @@ public class AccessionMapper {
 	private File proteinCountsFile;
 
 	private Map<String, Integer> gcfToTaxID;
-	private Map<Integer, List<Double>> proteinCounts;
+	private Map<String, String> gcfToAssemblyLevel;
+	private Map<Integer, Map<Integer, List<Double>>> proteinCounts;
 
 	public void run(String src, File downloadFolder, int cores, SQLMappingDatabase mappingDatabase, TaxTree taxTree)
 			throws IOException {
 
 		mappingFile = new File(src + File.separator + "acc2gcfs2taxid.tab");
-		proteinCounts = new ConcurrentHashMap<Integer, List<Double>>();
+		proteinCounts = new ConcurrentHashMap<>();
 
 		gcfToTaxID = new AssemblyParser().getGcf2Taxid(src);
+		gcfToAssemblyLevel = new AssemblyParser().getGcfToAssembyLevel(src);
+
 		if (mappingFile.exists())
 			mappingFile.delete();
 
@@ -54,9 +80,14 @@ public class AccessionMapper {
 		proteinCountsFile = new File(src + File.separator + "taxid2proteins.tab");
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(proteinCountsFile, true));) {
 			for (Integer taxid : proteinCounts.keySet()) {
-				List<Double> counts = proteinCounts.get(taxid);
-				int median = (int) Math.round(Statistics.getMedian(counts));
-				writer.write(taxid + "\t" + median + "\n");
+				for (AssemblyLevel a : AssemblyLevel.values()) {
+					if (proteinCounts.get(taxid).containsKey(a.getPriority())) {
+						List<Double> counts = proteinCounts.get(taxid).get(a.getPriority());
+						int median = (int) Math.round(Statistics.getMedian(counts));
+						writer.write(taxid + "\t" + median + "\n");
+						break;
+					}
+				}
 			}
 		}
 		proteinCounts.clear();
@@ -106,12 +137,24 @@ public class AccessionMapper {
 							e.printStackTrace();
 						}
 					}
-					proteinCounts.putIfAbsent(taxid, new ArrayList<Double>());
-					proteinCounts.get(taxid).add(proteinCounter);
+					AssemblyLevel assLevel = getAssemblyLevel(searchID);
+					int speciesid = getRankTaxid(taxTree.getNode(taxid), "species");
+					proteinCounts.putIfAbsent(speciesid, new ConcurrentHashMap<>());
+					proteinCounts.get(speciesid).putIfAbsent(assLevel.getPriority(), new ArrayList<>());
+					proteinCounts.get(speciesid).get(assLevel.getPriority()).add(proteinCounter);
 				}
 				rL.reportProgress(1);
 			}
 			rL.countDown();
+		}
+		
+		public AssemblyLevel getAssemblyLevel(String gcf) {
+			String assLevel = gcfToAssemblyLevel.containsKey(gcf) ? gcfToAssemblyLevel.get(gcf) : "Unknown";
+			for (AssemblyLevel a : AssemblyLevel.values()) {
+				if (a.getName().equals(assLevel))
+					return a;
+			}
+			return AssemblyLevel.UNKNOWN;
 		}
 
 		private Integer getRankTaxid(TaxNode v, String rank) {
