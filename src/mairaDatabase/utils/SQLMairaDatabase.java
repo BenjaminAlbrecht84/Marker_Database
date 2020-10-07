@@ -12,18 +12,18 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class SQLMairaDatabase {
-	
+
 	private ResourceLoader rL = new ResourceLoader();
 
 	private String databaseFile;
 	private File tmpDir;
 	private Connection c;
 	private Statement stmt;
-	
+
 	public SQLMairaDatabase(String databaseFile, File tmpDir) {
 		init(databaseFile, tmpDir);
 	}
-	
+
 	private void init(String databaseFile, File tmpDir) {
 		try {
 			this.databaseFile = databaseFile;
@@ -38,7 +38,7 @@ public class SQLMairaDatabase {
 			Logger.getLogger(SQLMappingDatabase.class.getName()).log(Level.SEVERE, null, ex);
 		}
 	}
-	
+
 	public void createProtCountsTable(File protCounts) {
 		try {
 
@@ -80,7 +80,7 @@ public class SQLMairaDatabase {
 			e.printStackTrace();
 		}
 	}
-	
+
 	public void createAcc2taxidTable(File acc2gcf2taxid) {
 		try {
 
@@ -122,21 +122,21 @@ public class SQLMairaDatabase {
 			e.printStackTrace();
 		}
 	}
-	
+
 	public void createFactorsTable(File weightFile, int MAX_PROTEINS_PER_GCF) {
 		try {
-			
-			String table = "factors_"+MAX_PROTEINS_PER_GCF;
-			String index = "factors_"+MAX_PROTEINS_PER_GCF+"_index";
-			
-			System.out.println(">Creating SQL Table factors");
+
+			String table = "factors_" + MAX_PROTEINS_PER_GCF;
+			String index = "factors_" + MAX_PROTEINS_PER_GCF + "_index";
+
+			System.out.println(">Creating SQL Table "+table);
 			rL.setTime();
-			stmt.execute("CREATE TABLE IF NOT EXISTS "+table+" (acc TEXT, factor REAL)");
-			stmt.execute("DELETE FROM "+table);
+			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, factor REAL)");
+			stmt.execute("DELETE FROM " + table);
 			c.setAutoCommit(false);
 			int count = 0;
 			rL.setMaxProgress(weightFile.length());
-			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO "+table+" VALUES (?, ?);");
+			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?);");
 					BufferedReader buf = new BufferedReader(new FileReader(weightFile));) {
 				String line;
 				while ((line = buf.readLine()) != null) {
@@ -152,14 +152,14 @@ public class SQLMairaDatabase {
 			}
 			c.commit();
 			c.setAutoCommit(true);
-			System.out.println(String.format("Table "+table+": added %,d items", count));
+			System.out.println(String.format("Table " + table + ": added %,d items", count));
 			rL.reportFinish();
 			rL.reportRuntime();
 
-			System.out.println(">Indexing SQL Table "+table);
+			System.out.println(">Indexing SQL Table " + table);
 			rL.setTime();
-			stmt.execute("DROP INDEX IF EXISTS "+index);
-			stmt.execute("CREATE INDEX "+index+" ON "+table+" (acc)");
+			stmt.execute("DROP INDEX IF EXISTS " + index);
+			stmt.execute("CREATE INDEX " + index + " ON " + table + " (acc)");
 			rL.reportFinish();
 			rL.reportRuntime();
 
@@ -167,5 +167,50 @@ public class SQLMairaDatabase {
 			e.printStackTrace();
 		}
 	}
-	
+
+	public void createAcc2DominatorsTable(File genusDominationFile) {
+		try {
+
+			String table = "acc2dominator";
+			String index = "acc2dominator_index";
+
+			System.out.println(">Creating SQL Table "+table);
+			rL.setTime();
+			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, dominator TEXT)");
+			stmt.execute("DELETE FROM " + table);
+			c.setAutoCommit(false);
+			int count = 0;
+			rL.setMaxProgress(genusDominationFile.length());
+			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?);");
+					BufferedReader buf = new BufferedReader(new FileReader(genusDominationFile));) {
+				String line;
+				while ((line = buf.readLine()) != null) {
+					final String[] tokens = line.split("\t");
+					final String accession = tokens[0];
+					final String dominator = tokens[1];
+					insertStmd.setString(1, accession);
+					insertStmd.setString(2, dominator);
+					insertStmd.execute();
+					count++;
+					rL.reportProgress(line.length() + 1);
+				}
+			}
+			c.commit();
+			c.setAutoCommit(true);
+			System.out.println(String.format("Table " + table + ": added %,d items", count));
+			rL.reportFinish();
+			rL.reportRuntime();
+
+			System.out.println(">Indexing SQL Table " + table);
+			rL.setTime();
+			stmt.execute("DROP INDEX IF EXISTS " + index);
+			stmt.execute("CREATE INDEX " + index + " ON " + table + " (dominator)");
+			rL.reportFinish();
+			rL.reportRuntime();
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
 }

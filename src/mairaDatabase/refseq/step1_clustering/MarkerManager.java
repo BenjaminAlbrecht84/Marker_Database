@@ -16,6 +16,7 @@ import mairaDatabase.refseq.utils.DiamondRunner;
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.utils.FastaReader;
+import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.ResourceLoader;
 import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.FastaReader.FastaEntry;
@@ -25,15 +26,15 @@ import mairaDatabase.utils.taxTree.TaxTree;
 public class MarkerManager {
 	
     private ResourceLoader rL = new ResourceLoader();
+    private File markerOutputFolder;
     
-	public void runMarker(String rank, String srcPath, String aliFolder, TaxTree taxTree, SQLMappingDatabase mappingDatabase, int cores, int memory, int identity, File tmpFile) {
+	public void runMarker(String rank, String srcPath, String aliFolder, File markerClusterFolder, TaxTree taxTree, SQLMappingDatabase mappingDatabase, int cores, int memory, int identity, File tmpFile) {
 
         try {
-
-            File clusterFolder = new File(srcPath + File.separator + rank + "_marker_proteins_clustered");
-            File outFolder = new File(srcPath + File.separator + rank + "_marker_proteins");
-            outFolder.mkdir();
-            List<File> faaFiles = new ArrayList<>(Arrays.asList(clusterFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"))));
+        	
+            markerOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins");
+            markerOutputFolder.mkdir();
+            List<File> faaFiles = new ArrayList<>(Arrays.asList(markerClusterFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"))));
             Collections.sort(faaFiles, Comparator.comparingLong(File::length).reversed());
             long totalFileLength = 0L;
             for(File f : faaFiles)
@@ -43,38 +44,38 @@ public class MarkerManager {
             rL.setTime();
             List<Runnable> collectNewProteinsThreads = new ArrayList<>();
             for (File faaFile : faaFiles)
-                collectNewProteinsThreads.add(new CollectNewProteinsThread(faaFile, tmpFile, outFolder.getAbsolutePath(), aliFolder));
+                collectNewProteinsThreads.add(new CollectNewProteinsThread(faaFile, tmpFile, markerOutputFolder.getAbsolutePath(), aliFolder));
             rL.runThreads(cores, collectNewProteinsThreads, totalFileLength);
 
             System.out.println(">Aligning new vs all proteins using DIAMOND");
             rL.setTime();
-            File clusteredProteins = new File(outFolder + File.separator + "cluster.faa");
+            File clusteredProteins = new File(markerOutputFolder + File.separator + "cluster.faa");
             clusteredProteins.createNewFile();
             clusteredProteins.deleteOnExit();
-            for (File f : clusterFolder.listFiles((dir, name) -> name.endsWith("_clustered.faa")))
+            for (File f : markerClusterFolder.listFiles((dir, name) -> name.endsWith("_clustered.faa")))
                 appendToFile(f, clusteredProteins);
             File clusterDb = DiamondRunner.makedb(clusteredProteins, cores);
             clusteredProteins.delete();
             clusterDb.deleteOnExit();
-            File newProteins = new File(outFolder + File.separator + "newProteins.faa");
+            File newProteins = new File(markerOutputFolder + File.separator + "newProteins.faa");
             newProteins.createNewFile();
             newProteins.deleteOnExit();
-            for (File f : outFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
+            for (File f : markerOutputFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
                 appendToFile(newProteins, f);
             File tabFile1 = DiamondRunner.blastp(clusterDb, newProteins, tmpFile, identity, memory, cores);
             newProteins.delete();
             clusterDb.delete();
 
             System.out.println(">Aligning all vs new proteins using DIAMOND");
-            File newClusteredProteins = new File(outFolder + File.separator + "newCluster.faa");
+            File newClusteredProteins = new File(markerOutputFolder + File.separator + "newCluster.faa");
             newClusteredProteins.createNewFile();
             newClusteredProteins.deleteOnExit();
-            for (File f : outFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
+            for (File f : markerOutputFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
                 appendToFile(f, newClusteredProteins);
             File newClusterDb = newClusteredProteins.exists() ? DiamondRunner.makedb(newClusteredProteins, cores) : null;
             newClusterDb.deleteOnExit();
             newClusteredProteins.delete();
-            File allProteins = new File(outFolder + File.separator + "allProteins.faa");
+            File allProteins = new File(markerOutputFolder + File.separator + "allProteins.faa");
             allProteins.createNewFile();
             allProteins.deleteOnExit();
             for (File f : faaFiles)
@@ -88,13 +89,13 @@ public class MarkerManager {
             List<Runnable> processingTabFileThreads = new ArrayList<>();
             File[] tabFiles = {tabFile1, tabFile2};
             for (File faaFile : faaFiles)
-                processingTabFileThreads.add(new ProcessingTabFileThread(faaFile, tabFiles, aliFolder, tmpFile, taxTree, mappingDatabase, outFolder));
+                processingTabFileThreads.add(new ProcessingTabFileThread(faaFile, tabFiles, aliFolder, tmpFile, taxTree, mappingDatabase, markerOutputFolder));
             rL.runThreads(1, processingTabFileThreads, totalFileLength);
 
             System.out.println(">Computing marker proteins for " + faaFiles.size() + " protein sets");
             List<Runnable> selectMarkersThreads = new ArrayList<>();
             for (File faaFile : faaFiles)
-                selectMarkersThreads.add(new SelectMarkersThread(faaFile, tmpFile, identity, aliFolder, outFolder, taxTree, mappingDatabase));
+                selectMarkersThreads.add(new SelectMarkersThread(faaFile, tmpFile, identity, aliFolder, markerOutputFolder, taxTree, mappingDatabase));
             rL.runThreads(cores, selectMarkersThreads, totalFileLength);
 
             // removing new files
@@ -104,10 +105,16 @@ public class MarkerManager {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        
+        FileUtils.deleteDirectory(markerClusterFolder.getAbsolutePath());
 
     }
     
-    private class SelectMarkersThread implements Runnable {
+    public File getMarkerOutputFolder() {
+		return markerOutputFolder;
+	}
+
+	private class SelectMarkersThread implements Runnable {
 
         private String outFolder, aliFolder;
         private File faaFile, tmpFile;

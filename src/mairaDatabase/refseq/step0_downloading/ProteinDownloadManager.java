@@ -28,7 +28,8 @@ public class ProteinDownloadManager {
 	private ResourceLoader rL = new ResourceLoader();
 	private int downloadThreads = 1;
 	private List<Runnable> threads;
-
+	
+	private File proteinFolder;
 	private List<Pair<String, String>> ftpLinks;
 	private int ftpPointer = 0;
 	private File[] proteinDirs;
@@ -81,7 +82,7 @@ public class ProteinDownloadManager {
 			// collecting protein data
 			System.out
 					.println(">Creating " + refseqProteins.listFiles(File::isDirectory).length + " genus protein sets");
-			File proteinFolder = new File(srcPath + File.separator + "genus_database_proteins");
+			proteinFolder = new File(srcPath + File.separator + "genus_database_proteins");
 			proteinFolder.mkdir();
 			threads = new ArrayList<>();
 			proteinDirs = refseqProteins.listFiles(File::isDirectory);
@@ -266,6 +267,10 @@ public class ProteinDownloadManager {
 
 		}
 
+	}
+	
+	public File getProteinFolder() {
+		return proteinFolder;
 	}
 
 	private String getRank(TaxNode v, String rank) {

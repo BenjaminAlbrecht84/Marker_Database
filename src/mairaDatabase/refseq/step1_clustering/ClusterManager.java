@@ -1,16 +1,21 @@
 package mairaDatabase.refseq.step1_clustering;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import mairaDatabase.refseq.step1_clustering.Clustering.ClusteringMode;
 import mairaDatabase.refseq.utils.DiamondRunner;
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.utils.FastaReader;
+import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.ResourceLoader;
 import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.FastaReader.FastaEntry;
@@ -19,13 +24,18 @@ import mairaDatabase.utils.taxTree.TaxTree;
 public class ClusterManager {
 
 	private ResourceLoader rL = new ResourceLoader();
+	private File genusDominationFile;
+	private File markerClusterOutputFolder;
 
-	public void runClustering(String rank, String srcPath, String aliFolder, TaxTree taxTree,
-			SQLMappingDatabase mappingDatabase, int cores, int memory, int identity, File tmpFile) {
+	public void runClustering(String rank, String srcPath, String aliFolder, File proteinFolder, TaxTree taxTree,
+			SQLMappingDatabase mappingDatabase, int cores, int memory, int markerIdentity, int genusIdentity,
+			File tmpFile) {
 
-		File outFolder = new File(srcPath + File.separator + rank + "_marker_proteins_clustered");
-		outFolder.mkdir();
-		File[] initFaaFiles = new File(srcPath + File.separator + "genus_database_proteins")
+		markerClusterOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins_clustered");
+		markerClusterOutputFolder.mkdir();
+		File genusOutputFolder = new File(srcPath + File.separator + rank + "_dbs");
+		genusOutputFolder.mkdir();
+		File[] initFaaFiles = proteinFolder
 				.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"));
 		ArrayList<File> faaFiles = new ArrayList<>(Arrays.asList(initFaaFiles));
 		Collections.sort(faaFiles, Comparator.comparingLong(File::length).reversed());
@@ -45,17 +55,50 @@ public class ClusterManager {
 		System.out.println(">Running DIAMOND on " + initFaaFiles.length + " protein " + ((n == 1) ? "set" : "sets"));
 		List<Runnable> alignProteinsThreads = new ArrayList<>();
 		for (File faaFile : initFaaFiles)
-			alignProteinsThreads.add(
-					new AlignProteinsThread(faaFile, tmpFile, aliFolder, cores, memory, identity, mappingDatabase));
+			alignProteinsThreads.add(new AlignProteinsThread(faaFile, tmpFile, aliFolder, cores, memory, markerIdentity,
+					mappingDatabase));
 		rL.runThreads(1, alignProteinsThreads, totalFileLength);
 
-		System.out.println(">Clustering " + initFaaFiles.length + " protein " + ((n == 1) ? "set" : "sets"));
-		List<Runnable> clusterProteinsThread = new ArrayList<>();
+		System.out.println(
+				">Clustering for marker db " + initFaaFiles.length + " protein " + ((n == 1) ? "set" : "sets"));
+		List<Runnable> clusterProteinsForMarkerDbThread = new ArrayList<>();
 		for (File faaFile : initFaaFiles)
-			clusterProteinsThread
-					.add(new ClusterProteinsThread(faaFile, tmpFile, outFolder, aliFolder, identity, mappingDatabase));
-		rL.runThreads(cores, clusterProteinsThread, totalFileLength);
+			clusterProteinsForMarkerDbThread.add(new ClusterProteinsThread(faaFile, tmpFile, markerClusterOutputFolder,
+					null, aliFolder, markerIdentity, mappingDatabase, ClusteringMode.MARKER_DB));
+		rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
 
+		if (rank.equals("genus")) {
+			
+			genusDominationFile = new File(srcPath + File.separator + "acc2dominator.tab");
+			genusDominationFile.delete();
+
+			System.out.println(
+					">Clustering for genus db " + initFaaFiles.length + " protein " + ((n == 1) ? "set" : "sets"));
+			List<Runnable> clusterProteinsForGenusDbThread = new ArrayList<>();
+			for (File faaFile : initFaaFiles) 
+				clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(faaFile, tmpFile, genusOutputFolder,
+						genusDominationFile, aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
+			rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
+
+		}
+		
+		for(File faaFile : initFaaFiles) {
+			try {
+				Files.move(faaFile.toPath(), Paths.get(genusOutputFolder + File.separator + faaFile.getName()), StandardCopyOption.REPLACE_EXISTING);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		FileUtils.deleteDirectory(proteinFolder.getAbsolutePath());
+
+	}
+
+	public File getGenusDominationFile() {
+		return genusDominationFile;
+	}
+
+	public File getMarkerClusterOutputFolder() {
+		return markerClusterOutputFolder;
 	}
 
 	private class CollectNewProteinsThread implements Runnable {
@@ -152,29 +195,33 @@ public class ClusterManager {
 
 	private class ClusterProteinsThread implements Runnable {
 
+		private File dominationFile;
 		private String aliFolder, outFolder, genus;
 		private File faaFile, tmpFile;
 		private int identity;
 		private SQLMappingDatabase mappingDatabase;
+		private ClusteringMode mode;
 
-		public ClusterProteinsThread(File faaFile, File tmpFile, File outFolder, String aliFolder, int identity,
-				SQLMappingDatabase mappingDatabase) {
+		public ClusterProteinsThread(File faaFile, File tmpFile, File outFolder, File dominationFile, String aliFolder,
+				int identity, SQLMappingDatabase mappingDatabase, ClusteringMode mode) {
+			this.outFolder = outFolder.getAbsolutePath();
 			this.faaFile = faaFile;
 			this.tmpFile = tmpFile;
-			this.outFolder = outFolder.getAbsolutePath();
+			this.dominationFile = dominationFile;
 			this.identity = identity;
 			this.aliFolder = aliFolder;
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
 			this.genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("\\.faa", ""));
+			this.mode = mode;
 		}
 
 		@Override
 		public void run() {
 			SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-			File outFile = new File(
+			File proteinOutFile = new File(
 					outFolder + File.separator + faaFile.getName().replaceAll("\\.faa", "_clustered.faa"));
-			outFile.delete();
-			new Clustering().run(genus, aliDatabase, faaFile, outFile, identity, identity);
+			proteinOutFile.delete();
+			new Clustering().run(genus, aliDatabase, faaFile, proteinOutFile, dominationFile, identity, mode);
 			mappingDatabase.close();
 			aliDatabase.close();
 			rL.reportProgress(faaFile.length());

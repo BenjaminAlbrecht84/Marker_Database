@@ -7,6 +7,7 @@ import java.util.ArrayList;
 
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
+import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.ResourceLoader;
 import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.taxTree.TaxTree;
@@ -21,7 +22,7 @@ public class FilterManager {
     private String aliFolder;
     private File tmpDir, weightFile;
 
-    public void run(String rank, String srcPath, String aliFolder, File tmpDir, TaxTree taxTree, SQLMappingDatabase mappingDatabase, int NUM_OF_PROTEINS, int MIN_ID, int cores) {
+    public void run(String rank, String srcPath, String aliFolder, File tmpDir, File markerDir, TaxTree taxTree, SQLMappingDatabase mappingDatabase, int NUM_OF_PROTEINS, int MIN_ID, int cores) {
 
         this.taxTree = taxTree;
         this.NUM_OF_PROTEINS = NUM_OF_PROTEINS;
@@ -30,11 +31,10 @@ public class FilterManager {
         this.tmpDir = tmpDir;
         rL.setTime();
 
-        File markerDir = new File(srcPath + File.separator + rank + "_marker_proteins");
-
         try {
-
-            File markerFile = new File(srcPath + File.separator + "genus_marker_db_" + NUM_OF_PROTEINS + ".faa");
+        	
+        	File markerDatabase = new File(srcPath+File.separator+"marker_db");
+            File markerFile = new File(markerDatabase.getAbsolutePath() + File.separator + "genus_marker_db_" + NUM_OF_PROTEINS + ".faa");
             markerFile.delete();
             markerWriter = new BufferedWriter(new FileWriter(markerFile, true));
            
@@ -55,6 +55,8 @@ public class FilterManager {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        
+        FileUtils.deleteDirectory(markerDir.getAbsolutePath());
 
     }
 

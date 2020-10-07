@@ -8,7 +8,9 @@ import mairaDatabase.refseq.step0_downloading.ProteinDownloadManager;
 import mairaDatabase.refseq.step1_clustering.ClusterManager;
 import mairaDatabase.refseq.step1_clustering.MarkerManager;
 import mairaDatabase.refseq.step2_filtering.FilterManager;
+import mairaDatabase.refseq.utils.Cleaner;
 import mairaDatabase.refseq.utils.NewickTaxTreeWriter;
+import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.SQLMairaDatabase;
 import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.taxTree.TaxDump;
@@ -16,8 +18,8 @@ import mairaDatabase.utils.taxTree.TaxTree;
 
 public class RefseqManager {
 
-	public final static int CLUSTER_ID = 90, MARKER_ID = 80;
-	public final static int MAX_PROTEINS_PER_GCF = 1000;
+	public final static int CLUSTER_MARKER_ID = 90, CLUSTER_GENUS_ID = 97, MARKER_ID = 80;
+	public final static int MAX_PROTEINS_PER_GCF = 100;
 	public final static int MIN_LENGTH = 100;
 
 	public void run(File src, File tmp, String aliDir, int cores, int memory, String[] genera) {
@@ -33,24 +35,32 @@ public class RefseqManager {
 
 		new NCBIDownloader().run(srcPath);
 		TaxTree taxTree = new TaxDump().parse(srcPath);
+		FileUtils.deleteDirectory(src.getAbsolutePath() + File.separator + "taxdump");
 		ProteinDownloadManager proteinDownloadManager = new ProteinDownloadManager();
 		proteinDownloadManager.run(srcPath, mappingDatabase, taxTree, cores, genera);
 
 		String rank = "genus";
-		new ClusterManager().runClustering(rank, srcPath, aliDir, taxTree, mappingDatabase, cores, memory, CLUSTER_ID,
-				tmp);
-		new MarkerManager().runMarker(rank, srcPath, aliDir, taxTree, mappingDatabase, cores, memory, MARKER_ID, tmp);
+		ClusterManager clusterManager = new ClusterManager();
+		clusterManager.runClustering(rank, srcPath, aliDir, proteinDownloadManager.getProteinFolder(), taxTree,
+				mappingDatabase, cores, memory, CLUSTER_MARKER_ID, CLUSTER_GENUS_ID, tmp);
+		MarkerManager markerManager = new MarkerManager();
+		markerManager.runMarker(rank, srcPath, aliDir, clusterManager.getMarkerClusterOutputFolder(), taxTree,
+				mappingDatabase, cores, memory, MARKER_ID, tmp);
 		FilterManager filterManager = new FilterManager();
-		filterManager.run(rank, srcPath, aliDir, tmpDir, taxTree, mappingDatabase, MAX_PROTEINS_PER_GCF, CLUSTER_ID,
-				cores);
+		filterManager.run(rank, srcPath, aliDir, tmpDir, markerManager.getMarkerOutputFolder(), taxTree,
+				mappingDatabase, MAX_PROTEINS_PER_GCF, CLUSTER_MARKER_ID, cores);
 
 		File mairaDb = new File(srcPath + File.separator + "maira.db");
+		mairaDb.delete();
 		SQLMairaDatabase mairaDatabase = new SQLMairaDatabase(mairaDb.getAbsolutePath(), tmpDir);
 		mairaDatabase.createAcc2taxidTable(proteinDownloadManager.getMappingFile());
 		mairaDatabase.createFactorsTable(filterManager.getWeightFile(), MAX_PROTEINS_PER_GCF);
 		mairaDatabase.createProtCountsTable(proteinDownloadManager.getProteinCountsFile());
+		mairaDatabase.createAcc2DominatorsTable(clusterManager.getGenusDominationFile());
 
 		NewickTaxTreeWriter.run(srcFolder);
+
+		Cleaner.apply(srcFolder, database);
 
 		long runtime = (System.currentTimeMillis() - time) / 1000;
 		System.out.println("Total runtime: " + runtime + "ms");
