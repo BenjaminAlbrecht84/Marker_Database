@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import mairaDatabase.utils.FileUtils;
+
 public class Cleaner {
 
 	public static void apply(File src, File database) {
@@ -19,6 +21,9 @@ public class Cleaner {
 				f.delete();
 		}
 		database.delete();
+		
+		// deleting folders
+		FileUtils.deleteDirectory(src.getAbsolutePath() + File.separator + "taxdump");
 		
 	}
 

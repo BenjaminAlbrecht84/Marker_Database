@@ -129,7 +129,7 @@ public class SQLMairaDatabase {
 			String table = "factors_" + MAX_PROTEINS_PER_GCF;
 			String index = "factors_" + MAX_PROTEINS_PER_GCF + "_index";
 
-			System.out.println(">Creating SQL Table "+table);
+			System.out.println(">Creating SQL Table " + table);
 			rL.setTime();
 			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, factor REAL)");
 			stmt.execute("DELETE FROM " + table);
@@ -174,7 +174,7 @@ public class SQLMairaDatabase {
 			String table = "acc2dominator";
 			String index = "acc2dominator_index";
 
-			System.out.println(">Creating SQL Table "+table);
+			System.out.println(">Creating SQL Table " + table);
 			rL.setTime();
 			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, dominator TEXT)");
 			stmt.execute("DELETE FROM " + table);
@@ -205,6 +205,40 @@ public class SQLMairaDatabase {
 			rL.setTime();
 			stmt.execute("DROP INDEX IF EXISTS " + index);
 			stmt.execute("CREATE INDEX " + index + " ON " + table + " (dominator)");
+			rL.reportFinish();
+			rL.reportRuntime();
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void createTree2Newick(String type, String newick) {
+		try {
+
+			String table = "tree2newick";
+			String index = "tree2newick_index";
+
+			System.out.println(">Creating SQL Table " + table);
+			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (type TEXT, newick TEXT)");
+			stmt.execute("DELETE FROM " + table);
+			c.setAutoCommit(false);
+			int count = 0;
+			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?);")) {
+				insertStmd.setString(1, type);
+				insertStmd.setString(2, newick);
+				insertStmd.execute();
+			}
+			c.commit();
+			c.setAutoCommit(true);
+			System.out.println(String.format("Table " + table + ": added %,d items", count));
+			rL.reportFinish();
+			rL.reportRuntime();
+
+			System.out.println(">Indexing SQL Table " + table);
+			rL.setTime();
+			stmt.execute("DROP INDEX IF EXISTS " + index);
+			stmt.execute("CREATE INDEX " + index + " ON " + table + " (type)");
 			rL.reportFinish();
 			rL.reportRuntime();
 

@@ -10,7 +10,6 @@ import mairaDatabase.refseq.step1_clustering.MarkerManager;
 import mairaDatabase.refseq.step2_filtering.FilterManager;
 import mairaDatabase.refseq.utils.Cleaner;
 import mairaDatabase.refseq.utils.NewickTaxTreeWriter;
-import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.SQLMairaDatabase;
 import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.taxTree.TaxDump;
@@ -18,7 +17,7 @@ import mairaDatabase.utils.taxTree.TaxTree;
 
 public class RefseqManager {
 
-	public final static int CLUSTER_MARKER_ID = 90, CLUSTER_GENUS_ID = 97, MARKER_ID = 80;
+	public final static int CLUSTER_MARKER_ID = 90, CLUSTER_GENUS_ID = 99, MARKER_ID = 80;
 	public final static int MAX_PROTEINS_PER_GCF = 100;
 	public final static int MIN_LENGTH = 100;
 
@@ -35,7 +34,6 @@ public class RefseqManager {
 
 		new NCBIDownloader().run(srcPath);
 		TaxTree taxTree = new TaxDump().parse(srcPath);
-		FileUtils.deleteDirectory(src.getAbsolutePath() + File.separator + "taxdump");
 		ProteinDownloadManager proteinDownloadManager = new ProteinDownloadManager();
 		proteinDownloadManager.run(srcPath, mappingDatabase, taxTree, cores, genera);
 
@@ -58,10 +56,9 @@ public class RefseqManager {
 		mairaDatabase.createProtCountsTable(proteinDownloadManager.getProteinCountsFile());
 		mairaDatabase.createAcc2DominatorsTable(clusterManager.getGenusDominationFile());
 
-		NewickTaxTreeWriter.run(srcFolder);
+		NewickTaxTreeWriter.run(srcFolder, mairaDatabase);
 
 		Cleaner.apply(srcFolder, database);
-
 		long runtime = (System.currentTimeMillis() - time) / 1000;
 		System.out.println("Total runtime: " + runtime + "ms");
 

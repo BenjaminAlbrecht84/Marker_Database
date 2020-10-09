@@ -7,12 +7,13 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.zip.GZIPOutputStream;
 
+import mairaDatabase.utils.SQLMairaDatabase;
 import mairaDatabase.utils.taxTree.TaxDump;
 import mairaDatabase.utils.taxTree.TaxTree;
 
 public class NewickTaxTreeWriter {
 
-	public static void run(File src) {
+	public static void run(File src, SQLMairaDatabase mairaDatabase) {
 
 		File treeFile = new File(src.getAbsolutePath() + File.separator + "ncbi_taxonomy.tre");
 		treeFile.deleteOnExit();
@@ -20,6 +21,8 @@ public class NewickTaxTreeWriter {
 
 		TaxTree tree = new TaxDump().parse(src.getAbsolutePath());
 		String newick = tree.toNewick();
+		
+		// writing newick string to file
 		try {
 			FileWriter fW = new FileWriter(treeFile);
 			fW.write(newick);
@@ -28,6 +31,9 @@ public class NewickTaxTreeWriter {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		
+		// writing newick string into database
+		mairaDatabase.createTree2Newick("tax", newick);
 
 	}
 

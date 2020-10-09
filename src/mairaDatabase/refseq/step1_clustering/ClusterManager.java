@@ -33,8 +33,8 @@ public class ClusterManager {
 
 		markerClusterOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins_clustered");
 		markerClusterOutputFolder.mkdir();
-		File genusOutputFolder = new File(srcPath + File.separator + rank + "_dbs");
-		genusOutputFolder.mkdir();
+		File genusFolder = new File(srcPath + File.separator + rank + "_dbs");
+		genusFolder.mkdir();
 		File[] initFaaFiles = proteinFolder
 				.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"));
 		ArrayList<File> faaFiles = new ArrayList<>(Arrays.asList(initFaaFiles));
@@ -68,29 +68,39 @@ public class ClusterManager {
 		rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
 
 		if (rank.equals("genus")) {
-			
+
 			genusDominationFile = new File(srcPath + File.separator + "acc2dominator.tab");
 			genusDominationFile.delete();
 
 			System.out.println(
 					">Clustering for genus db " + initFaaFiles.length + " protein " + ((n == 1) ? "set" : "sets"));
 			List<Runnable> clusterProteinsForGenusDbThread = new ArrayList<>();
-			for (File faaFile : initFaaFiles) 
+			for (File faaFile : initFaaFiles) {
+				File genusOutputFolder = new File(genusFolder + File.separator + getGenus(faaFile));
+				genusOutputFolder.mkdir();
 				clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(faaFile, tmpFile, genusOutputFolder,
 						genusDominationFile, aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
+			}
 			rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
 
 		}
-		
-		for(File faaFile : initFaaFiles) {
+
+		for (File faaFile : initFaaFiles) {
 			try {
-				Files.move(faaFile.toPath(), Paths.get(genusOutputFolder + File.separator + faaFile.getName()), StandardCopyOption.REPLACE_EXISTING);
+				Files.move(faaFile.toPath(),
+						Paths.get(
+								genusFolder + File.separator + getGenus(faaFile) + File.separator + faaFile.getName()),
+						StandardCopyOption.REPLACE_EXISTING);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
 		FileUtils.deleteDirectory(proteinFolder.getAbsolutePath());
 
+	}
+
+	public String getGenus(File faaFile) {
+		return faaFile.getName().split("\\.")[0];
 	}
 
 	public File getGenusDominationFile() {
