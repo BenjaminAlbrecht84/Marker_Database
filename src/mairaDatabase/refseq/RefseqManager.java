@@ -58,7 +58,7 @@ public class RefseqManager {
 
 		NewickTaxTreeWriter.run(srcFolder, mairaDatabase);
 
-//		Cleaner.apply(srcFolder, database);
+		Cleaner.apply(srcFolder, database);
 		long runtime = (System.currentTimeMillis() - time) / 1000;
 		System.out.println("Total runtime: " + runtime + "ms");
 
