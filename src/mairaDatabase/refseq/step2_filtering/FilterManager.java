@@ -20,7 +20,7 @@ public class FilterManager {
 	private TaxTree taxTree;
 	private int NUM_OF_PROTEINS, MIN_ID;
 	private String aliFolder;
-	private File tmpDir, weightFile;
+	private File tmpDir, weightFile, markerDatabase;
 
 	public void run(String rank, String srcPath, String aliFolder, File tmpDir, File markerDir, TaxTree taxTree,
 			SQLMappingDatabase mappingDatabase, int NUM_OF_PROTEINS, int MIN_ID, int cores) {
@@ -34,7 +34,7 @@ public class FilterManager {
 
 		try {
 
-			File markerDatabase = new File(srcPath + File.separator + "marker_db");
+			markerDatabase = new File(srcPath + File.separator + "marker_db");
 			markerDatabase.mkdir();
 			File markerFile = new File(
 					markerDatabase.getAbsolutePath() + File.separator + "genus_marker_db_" + NUM_OF_PROTEINS + ".faa");
@@ -60,6 +60,10 @@ public class FilterManager {
 
 		FileUtils.deleteDirectory(markerDir.getAbsolutePath());
 
+	}
+
+	public File getMarkerDatabase() {
+		return markerDatabase;
 	}
 
 	private class FilterThread implements Runnable {

@@ -1,4 +1,4 @@
-module Marker_Database {
+module MAIRA_database {
 	
 	exports mairaDatabase.refseq.step2_filtering;
 	exports mairaDatabase.refseq.utils.aliHelper;

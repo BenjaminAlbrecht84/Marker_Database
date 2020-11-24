@@ -19,7 +19,7 @@ public class Main {
 		int cores = Integer.parseInt(args[3]);
 		int memory = Integer.parseInt(args[4]);
 		String genera = args.length > 5 ? args[5] : null;
-		new RefseqManager().run(src, tmp, aliFolder, cores, memory, genera.trim().split(","));
+		new RefseqManager().run(src, tmp, aliFolder, cores, memory, genera.trim().split(","), "diamond");
 
 	}
 

@@ -8,6 +8,7 @@ import mairaDatabase.refseq.step0_downloading.ProteinDownloadManager;
 import mairaDatabase.refseq.step1_clustering.ClusterManager;
 import mairaDatabase.refseq.step1_clustering.MarkerManager;
 import mairaDatabase.refseq.step2_filtering.FilterManager;
+import mairaDatabase.refseq.utils.BashHelper;
 import mairaDatabase.refseq.utils.Cleaner;
 import mairaDatabase.refseq.utils.NewickTaxTreeWriter;
 import mairaDatabase.utils.SQLMairaDatabase;
@@ -21,7 +22,7 @@ public class RefseqManager {
 	public final static int MAX_PROTEINS_PER_GCF = 100;
 	public final static int MIN_LENGTH = 100;
 
-	public void run(File src, File tmp, String aliDir, int cores, int memory, String[] genera) {
+	public void run(File src, File tmp, String aliDir, int cores, int memory, String[] genera, String diamondBin) {
 
 		long time = System.currentTimeMillis();
 
@@ -40,10 +41,10 @@ public class RefseqManager {
 		String rank = "genus";
 		ClusterManager clusterManager = new ClusterManager();
 		clusterManager.runClustering(rank, srcPath, aliDir, proteinDownloadManager.getProteinFolder(), taxTree,
-				mappingDatabase, cores, memory, CLUSTER_MARKER_ID, CLUSTER_GENUS_ID, tmp);
+				mappingDatabase, cores, memory, CLUSTER_MARKER_ID, CLUSTER_GENUS_ID, tmp, diamondBin);
 		MarkerManager markerManager = new MarkerManager();
 		markerManager.runMarker(rank, srcPath, aliDir, clusterManager.getMarkerClusterOutputFolder(), taxTree,
-				mappingDatabase, cores, memory, MARKER_ID, tmp);
+				mappingDatabase, cores, memory, MARKER_ID, tmp, diamondBin);
 		FilterManager filterManager = new FilterManager();
 		filterManager.run(rank, srcPath, aliDir, tmpDir, markerManager.getMarkerOutputFolder(), taxTree,
 				mappingDatabase, MAX_PROTEINS_PER_GCF, CLUSTER_MARKER_ID, cores);
@@ -57,6 +58,7 @@ public class RefseqManager {
 		mairaDatabase.createAcc2DominatorsTable(clusterManager.getGenusDominationFile());
 
 		NewickTaxTreeWriter.run(srcFolder, mairaDatabase);
+		BashHelper.apply(srcPath, filterManager.getMarkerDatabase(), clusterManager.getGenusFolder());
 
 		Cleaner.apply(srcFolder, database);
 		long runtime = (System.currentTimeMillis() - time) / 1000;

@@ -45,18 +45,20 @@ public class MairaDatabase {
 		int cores;
 		int memory;
 		String generaInput;
+		String diamondBin;
 		
 		srcPath = options.getOptionMandatory("-f", "srcFolder", "Folder for the computed database files", "");
-		tmpPath = options.getOptionMandatory("-t", "tmpFolder", "Temporary folder used for computation (eg. /dev/shm)", "");
+		tmpPath = options.getOptionMandatory("-t", "tmpFolder", "Temporary folder used for speeding-up the computation (eg. /dev/shm)", "");
 		aliPath = options.getOptionMandatory("-a", "aliFolder", "Alignment folder capturing alignment information", "");
 		cores = options.getOption("-p", "threads", "Number of threads (default all)", Runtime.getRuntime().availableProcessors());
 		memory = options.getOption("-m", "memory", "Available working memory in GB (default max)", (int) Math.round(Runtime.getRuntime().maxMemory() / Math.pow(10,9)));
 		generaInput = options.getOption("-g", "genera", "Genera to be considered in the database (default all)", "");
+		diamondBin = options.getOption("-d", "diamond", "Path of DIAMOND binary", "diamond");
 		
 		File src = new File(srcPath);
 		File tmp = new File(tmpPath);
 		String[] genera = generaInput.isEmpty() ? null : generaInput.trim().split(",");
-		new RefseqManager().run(src, tmp, aliPath, cores, memory, genera);
+		new RefseqManager().run(src, tmp, aliPath, cores, memory, genera, diamondBin);
 		 
 	}
 

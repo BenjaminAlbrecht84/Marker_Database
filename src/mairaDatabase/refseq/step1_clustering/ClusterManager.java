@@ -1,9 +1,8 @@
 package mairaDatabase.refseq.step1_clustering;
 
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,25 +14,26 @@ import mairaDatabase.refseq.utils.DiamondRunner;
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.utils.FastaReader;
+import mairaDatabase.utils.FastaReader.FastaEntry;
 import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.ResourceLoader;
 import mairaDatabase.utils.SQLMappingDatabase;
-import mairaDatabase.utils.FastaReader.FastaEntry;
 import mairaDatabase.utils.taxTree.TaxTree;
 
 public class ClusterManager {
 
 	private ResourceLoader rL = new ResourceLoader();
 	private File genusDominationFile;
+	private File genusFolder;
 	private File markerClusterOutputFolder;
 
 	public void runClustering(String rank, String srcPath, String aliFolder, File proteinFolder, TaxTree taxTree,
 			SQLMappingDatabase mappingDatabase, int cores, int memory, int markerIdentity, int genusIdentity,
-			File tmpFile) {
+			File tmpFile, String diamondBin) {
 
 		markerClusterOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins_clustered");
 		markerClusterOutputFolder.mkdir();
-		File genusFolder = new File(srcPath + File.separator + rank + "_dbs");
+		genusFolder = new File(srcPath + File.separator + rank + "_dbs");
 		genusFolder.mkdir();
 		File[] initFaaFiles = proteinFolder
 				.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"));
@@ -56,7 +56,7 @@ public class ClusterManager {
 		List<Runnable> alignProteinsThreads = new ArrayList<>();
 		for (File faaFile : initFaaFiles)
 			alignProteinsThreads.add(new AlignProteinsThread(faaFile, tmpFile, aliFolder, cores, memory, markerIdentity,
-					mappingDatabase));
+					mappingDatabase, diamondBin));
 		rL.runThreads(1, alignProteinsThreads, totalFileLength);
 
 		System.out.println(
@@ -84,19 +84,13 @@ public class ClusterManager {
 			rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
 
 		}
-
-		for (File faaFile : initFaaFiles) {
-			try {
-				Files.move(faaFile.toPath(),
-						Paths.get(
-								genusFolder + File.separator + getGenus(faaFile) + File.separator + faaFile.getName()),
-						StandardCopyOption.REPLACE_EXISTING);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+		
 		FileUtils.deleteDirectory(proteinFolder.getAbsolutePath());
 
+	}
+
+	public File getGenusFolder() {
+		return genusFolder;
 	}
 
 	public String getGenus(File faaFile) {
@@ -154,9 +148,10 @@ public class ClusterManager {
 		private String aliFolder;
 		private int cores, memory, identity;
 		private SQLMappingDatabase mappingDatabase;
+		private String diamondBin;
 
 		public AlignProteinsThread(File faaFile, File tmpFile, String aliFolder, int cores, int memory, int identity,
-				SQLMappingDatabase mappingDatabase) {
+				SQLMappingDatabase mappingDatabase, String diamondBin) {
 			this.faaFile = faaFile;
 			this.tmpFile = tmpFile;
 			this.aliFolder = aliFolder;
@@ -164,6 +159,7 @@ public class ClusterManager {
 			this.memory = memory;
 			this.identity = identity;
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
+			this.diamondBin = diamondBin;
 		}
 
 		@Override
@@ -177,14 +173,14 @@ public class ClusterManager {
 				File newFile = new File(faaFile.getAbsolutePath().replaceAll("\\.faa", "_new.faa"));
 				newFile.createNewFile();
 				if (newFile.exists() && newFile.length() > 0) {
-					File dbFile1 = DiamondRunner.makedb(faaFile, cores);
-					File tabFile1 = DiamondRunner.blastp(dbFile1, newFile, tmpFile, identity, memory, cores);
+					File dbFile1 = DiamondRunner.makedb(faaFile, cores, diamondBin);
+					File tabFile1 = DiamondRunner.blastp(dbFile1, newFile, tmpFile, identity, memory, cores, diamondBin);
 					sqlAliDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile1, false);
 					dbFile1.delete();
 					tabFile1.delete();
 
-					File dbFile2 = DiamondRunner.makedb(newFile, cores);
-					File tabFile2 = DiamondRunner.blastp(dbFile2, faaFile, tmpFile, identity, memory, cores);
+					File dbFile2 = DiamondRunner.makedb(newFile, cores, diamondBin);
+					File tabFile2 = DiamondRunner.blastp(dbFile2, faaFile, tmpFile, identity, memory, cores, diamondBin);
 					sqlAliDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile2, false);
 					dbFile2.delete();
 					tabFile2.delete();
@@ -228,8 +224,10 @@ public class ClusterManager {
 		@Override
 		public void run() {
 			SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-			File proteinOutFile = new File(
-					outFolder + File.separator + faaFile.getName().replaceAll("\\.faa", "_clustered.faa"));
+			String fileName = mode == ClusteringMode.MARKER_DB
+					? faaFile.getName().replaceAll("\\.faa", "_clustered.faa")
+					: faaFile.getName();
+			File proteinOutFile = new File(outFolder + File.separator + fileName);
 			proteinOutFile.delete();
 			new Clustering().run(genus, aliDatabase, faaFile, proteinOutFile, dominationFile, identity, mode);
 			mappingDatabase.close();

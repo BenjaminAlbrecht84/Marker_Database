@@ -57,7 +57,7 @@ public class TaxNode {
 	
 	private String getLabelString() {
 		name = name != null ? name : "unknown";
-		name = name.replaceAll("\"", "'").replaceAll("|", ":");
+		name = name.replaceAll("\"", "'").replaceAll("\\|", ":");
 		return "\"" + name + "\"|" + taxid + "|" + rank + "| 0.0 | 0.0";
 	}
 
