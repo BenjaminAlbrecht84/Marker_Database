@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -40,7 +41,7 @@ public class SQLMappingDatabase {
 		}
 	}
 
-	public ArrayList<Integer> getTaxIdByAcc(String acc) {
+	public List<Integer> getTaxIdByAcc(String acc) {
 		String sql = "SELECT taxid FROM acc2gcf WHERE acc='" + acc + "'";
 		try {
 			ResultSet rs = stmt.executeQuery(sql);
@@ -51,7 +52,7 @@ public class SQLMappingDatabase {
 		return null;
 	}
 
-	public ArrayList<String> getGCFByAcc(String acc) {
+	public List<String> getGCFByAcc(String acc) {
 		String sql = "SELECT gcf FROM acc2gcf WHERE acc='" + acc + "'";
 		try {
 			ResultSet rs = stmt.executeQuery(sql);
@@ -62,7 +63,7 @@ public class SQLMappingDatabase {
 		return null;
 	}
 
-	public ArrayList<Integer> getTaxIDByGCF(String gcf) {
+	public List<Integer> getTaxIDByGCF(String gcf) {
 		String sql = "SELECT taxid FROM acc2gcf WHERE gcf='" + gcf + "'";
 		try {
 			ResultSet rs = stmt.executeQuery(sql);
@@ -73,7 +74,7 @@ public class SQLMappingDatabase {
 		return null;
 	}
 
-	public ArrayList<String> getACCByGCF(String gcf) {
+	public List<String> getACCByGCF(String gcf) {
 		String sql = "SELECT acc FROM acc2gcf WHERE gcf='" + gcf + "'";
 		try {
 			ResultSet rs = stmt.executeQuery(sql);
@@ -84,14 +85,14 @@ public class SQLMappingDatabase {
 		return null;
 	}
 
-	private ArrayList<String> toStringArrayList(ResultSet rs) throws SQLException {
+	private List<String> toStringArrayList(ResultSet rs) throws SQLException {
 		ArrayList<String> result = new ArrayList<>();
 		while (rs.next())
 			result.add(rs.getString(1));
 		return result;
 	}
 
-	private ArrayList<Integer> toIntArrayList(ResultSet rs) throws SQLException {
+	private List<Integer> toIntArrayList(ResultSet rs) throws SQLException {
 		ArrayList<Integer> result = new ArrayList<>();
 		while (rs.next())
 			result.add(rs.getInt(1));

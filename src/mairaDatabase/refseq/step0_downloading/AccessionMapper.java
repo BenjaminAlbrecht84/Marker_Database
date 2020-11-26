@@ -138,16 +138,18 @@ public class AccessionMapper {
 						}
 					}
 					AssemblyLevel assLevel = getAssemblyLevel(searchID);
-					int speciesid = getRankTaxid(taxTree.getNode(taxid), "species");
-					proteinCounts.putIfAbsent(speciesid, new ConcurrentHashMap<>());
-					proteinCounts.get(speciesid).putIfAbsent(assLevel.getPriority(), new ArrayList<>());
-					proteinCounts.get(speciesid).get(assLevel.getPriority()).add(proteinCounter);
+					Integer speciesid = getRankTaxid(taxTree.getNode(taxid), "species");
+					if (speciesid != null) {
+						proteinCounts.putIfAbsent(speciesid, new ConcurrentHashMap<>());
+						proteinCounts.get(speciesid).putIfAbsent(assLevel.getPriority(), new ArrayList<>());
+						proteinCounts.get(speciesid).get(assLevel.getPriority()).add(proteinCounter);
+					}
 				}
 				rL.reportProgress(1);
 			}
 			rL.countDown();
 		}
-		
+
 		public AssemblyLevel getAssemblyLevel(String gcf) {
 			String assLevel = gcfToAssemblyLevel.containsKey(gcf) ? gcfToAssemblyLevel.get(gcf) : "Unknown";
 			for (AssemblyLevel a : AssemblyLevel.values()) {

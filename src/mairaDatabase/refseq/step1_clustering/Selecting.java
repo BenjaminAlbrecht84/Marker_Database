@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.ArrayList;
+import java.util.List;
 
 import mairaDatabase.refseq.RefseqManager;
 import mairaDatabase.refseq.utils.Formatter;
@@ -65,7 +66,7 @@ public class Selecting {
 
     }
 
-    private String getRank(ArrayList<Integer> taxids, String rank) {
+    private String getRank(List<Integer> taxids, String rank) {
         String name = null;
         for (int taxid : taxids) {
             TaxNode w = taxTree.getNode(taxid);

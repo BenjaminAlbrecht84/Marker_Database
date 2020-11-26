@@ -209,7 +209,7 @@ public class MarkerManager {
 
 		}
 
-		private String getRank(ArrayList<Integer> taxids, String rank) {
+		private String getRank(List<Integer> taxids, String rank) {
 			String name = null;
 			for (int taxid : taxids) {
 				TaxNode w = taxTree.getNode(taxid);
