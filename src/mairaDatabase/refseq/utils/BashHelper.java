@@ -46,9 +46,9 @@ public class BashHelper {
 					String diamondDb = replaceSuffix(f, "dmnd").replace("genus", "diamond");
 					diamondWriter.write("$exe makedb --in " + f.getAbsolutePath() + " -d " + diamondDb + " -p $cpus\n");
 
-					String lastdDb = replaceSuffix(f, "").replace("genus", "last");
-					lastWriter.write("mkdir " + lastdDb);
-					lastWriter.write("$exe -P $cpus -s $size -p " + lastdDb + "/last_db " + f.getAbsolutePath());
+					String lastdDb = removeSuffix(f).replace("genus", "last");
+					lastWriter.write("mkdir " + lastdDb + "\n");
+					lastWriter.write("$exe -P $cpus -s $size -p " + lastdDb + "/last_db " + f.getAbsolutePath() + "\n");
 
 					String ellaDb = replaceSuffix(f, "ella").replace("genus", "ella");
 					ellaWriter
@@ -60,14 +60,13 @@ public class BashHelper {
 				for (File dir : Stream.of(genusDir.listFiles()).filter(d -> d.isDirectory())
 						.collect(Collectors.toList())) {
 
-					for (File f : Stream.of(dir.listFiles()).filter(f -> f.isFile())
-							.collect(Collectors.toList())) {
+					for (File f : Stream.of(dir.listFiles()).filter(f -> f.isFile()).collect(Collectors.toList())) {
 
 						String diamondDb = replaceSuffix(f, "dmnd");
 						diamondWriter
 								.write("$exe makedb --in " + f.getAbsolutePath() + " -d " + diamondDb + " -p $cpus\n");
 
-						String lastdDb = replaceSuffix(f, "");
+						String lastdDb = removeSuffix(f) + "_last_db";
 						lastWriter.write("mkdir " + lastdDb + "\n");
 						lastWriter.write("$exe -p " + lastdDb + "/last_db " + f.getAbsolutePath() + "\n");
 
@@ -95,6 +94,14 @@ public class BashHelper {
 		if (i > 0 && i < path.length() - 1)
 			path = path.substring(0, i + 1);
 		return path + newExtension;
+	}
+
+	private static String removeSuffix(File f) {
+		String path = f.getAbsolutePath();
+		int i = path.lastIndexOf('.');
+		if (i > 0 && i < path.length() - 1)
+			path = path.substring(0, i);
+		return path;
 	}
 
 }

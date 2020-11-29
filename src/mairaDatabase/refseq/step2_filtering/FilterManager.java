@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.ArrayList;
+import java.util.List;
 
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
@@ -38,6 +39,7 @@ public class FilterManager {
 			markerDatabase.mkdir();
 			File markerFile = new File(
 					markerDatabase.getAbsolutePath() + File.separator + "genus_marker_db_" + NUM_OF_PROTEINS + ".faa");
+			markerFile.delete();
 			markerWriter = new BufferedWriter(new FileWriter(markerFile, true));
 
 			weightFile = new File(srcPath + File.separator + "genus_marker_db_" + NUM_OF_PROTEINS + "_weights.tab");
@@ -46,7 +48,7 @@ public class FilterManager {
 
 			System.out.println(">Filtering marker proteins");
 			File[] faaFiles = markerDir.listFiles();
-			ArrayList<Runnable> threads = new ArrayList<>();
+			List<Runnable> threads = new ArrayList<>();
 			for (File faaFile : faaFiles)
 				threads.add(new FilterThread(faaFile, mappingDatabase));
 			rL.runThreads(cores, threads, threads.size());
