@@ -28,7 +28,7 @@ public class Clustering {
 	private final static int MIN_PROTEINS_CLUSTER = 1000;
 
 	public void run(String genus, SQLAlignmentDatabase alignmentDatabase, File faaFile, File proteinOutFile,
-			File dominationOutFile, int MIN_ID, ClusteringMode mode) {
+			BufferedWriter dominationWriter, int MIN_ID, ClusteringMode mode) {
 
 		String table = genus + "_clusterTable";
 		COV_THRESHOLD = MIN_ID;
@@ -70,9 +70,6 @@ public class Clustering {
 		long written = 0;
 		try {
 			BufferedWriter proteinsWriter = new BufferedWriter(new FileWriter(proteinOutFile));
-			BufferedWriter dominationWriter = dominationOutFile != null
-					? new BufferedWriter(new FileWriter(dominationOutFile, true))
-					: null;
 			try {
 				for (FastaEntry protein : genusProteins) {
 					String acc = protein.getName();
@@ -83,13 +80,11 @@ public class Clustering {
 						written++;
 					} else if (mode == ClusteringMode.GENUS_DB) {
 						for (ClusterNode w : v.getDominatedBy())
-							dominationWriter.write(v.getAcc() + "\t" + w.getAcc());
+							dominationWriter.write(v.getAcc() + "\t" + w.getAcc() + "\n");
 					}
 				}
 			} finally {
 				proteinsWriter.close();
-				if (dominationWriter != null)
-					dominationWriter.close();
 			}
 		} catch (Exception e) {
 			e.printStackTrace();

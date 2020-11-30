@@ -67,24 +67,34 @@ public class ClusterManager {
 					null, aliFolder, markerIdentity, mappingDatabase, ClusteringMode.MARKER_DB));
 		rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
 
-		if (rank.equals("genus")) {
+		try {
+			if (rank.equals("genus")) {
 
-			genusDominationFile = new File(srcPath + File.separator + "acc2dominator.tab");
-			genusDominationFile.delete();
+				genusDominationFile = new File(srcPath + File.separator + "acc2dominator.tab");
+				genusDominationFile.delete();
 
-			System.out.println(
-					">Clustering for genus db " + initFaaFiles.length + " protein " + ((n == 1) ? "set" : "sets"));
-			List<Runnable> clusterProteinsForGenusDbThread = new ArrayList<>();
-			for (File faaFile : initFaaFiles) {
-				File genusOutputFolder = new File(genusFolder + File.separator + getGenus(faaFile));
-				genusOutputFolder.mkdir();
-				clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(faaFile, tmpFile, genusOutputFolder,
-						genusDominationFile, aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
+				System.out.println(
+						">Clustering for genus db " + initFaaFiles.length + " protein " + ((n == 1) ? "set" : "sets"));
+				List<Runnable> clusterProteinsForGenusDbThread = new ArrayList<>();
+				BufferedWriter dominationWriter = new BufferedWriter(new FileWriter(genusDominationFile));
+				try {
+					for (File faaFile : initFaaFiles) {
+						File genusOutputFolder = new File(genusFolder + File.separator + getGenus(faaFile));
+						genusOutputFolder.mkdir();
+						clusterProteinsForGenusDbThread
+								.add(new ClusterProteinsThread(faaFile, tmpFile, genusOutputFolder, dominationWriter,
+										aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
+					}
+					rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
+				} finally {
+					dominationWriter.close();
+				}
+
 			}
-			rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
-
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
-		
+
 		FileUtils.deleteDirectory(proteinFolder.getAbsolutePath());
 
 	}
@@ -174,13 +184,15 @@ public class ClusterManager {
 				newFile.createNewFile();
 				if (newFile.exists() && newFile.length() > 0) {
 					File dbFile1 = DiamondRunner.makedb(faaFile, cores, diamondBin);
-					File tabFile1 = DiamondRunner.blastp(dbFile1, newFile, tmpFile, identity, memory, cores, diamondBin);
+					File tabFile1 = DiamondRunner.blastp(dbFile1, newFile, tmpFile, identity, memory, cores,
+							diamondBin);
 					sqlAliDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile1, false);
 					dbFile1.delete();
 					tabFile1.delete();
 
 					File dbFile2 = DiamondRunner.makedb(newFile, cores, diamondBin);
-					File tabFile2 = DiamondRunner.blastp(dbFile2, faaFile, tmpFile, identity, memory, cores, diamondBin);
+					File tabFile2 = DiamondRunner.blastp(dbFile2, faaFile, tmpFile, identity, memory, cores,
+							diamondBin);
 					sqlAliDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile2, false);
 					dbFile2.delete();
 					tabFile2.delete();
@@ -201,19 +213,19 @@ public class ClusterManager {
 
 	private class ClusterProteinsThread implements Runnable {
 
-		private File dominationFile;
+		private BufferedWriter dominationWriter;
 		private String aliFolder, outFolder, genus;
 		private File faaFile, tmpFile;
 		private int identity;
 		private SQLMappingDatabase mappingDatabase;
 		private ClusteringMode mode;
 
-		public ClusterProteinsThread(File faaFile, File tmpFile, File outFolder, File dominationFile, String aliFolder,
-				int identity, SQLMappingDatabase mappingDatabase, ClusteringMode mode) {
+		public ClusterProteinsThread(File faaFile, File tmpFile, File outFolder, BufferedWriter dominationWriter,
+				String aliFolder, int identity, SQLMappingDatabase mappingDatabase, ClusteringMode mode) {
 			this.outFolder = outFolder.getAbsolutePath();
 			this.faaFile = faaFile;
 			this.tmpFile = tmpFile;
-			this.dominationFile = dominationFile;
+			this.dominationWriter = dominationWriter;
 			this.identity = identity;
 			this.aliFolder = aliFolder;
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
@@ -229,7 +241,7 @@ public class ClusterManager {
 					: faaFile.getName();
 			File proteinOutFile = new File(outFolder + File.separator + fileName);
 			proteinOutFile.delete();
-			new Clustering().run(genus, aliDatabase, faaFile, proteinOutFile, dominationFile, identity, mode);
+			new Clustering().run(genus, aliDatabase, faaFile, proteinOutFile, dominationWriter, identity, mode);
 			mappingDatabase.close();
 			aliDatabase.close();
 			rL.reportProgress(faaFile.length());
