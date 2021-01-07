@@ -27,7 +27,7 @@ public class DiamondRunner {
 		String db = dbFile.getAbsolutePath(), in = faaFile.getAbsolutePath();
 		String cmd = diamondBin + " blastp -d " + db + " -q " + in + " --shape-mask 111101011101111 -b " + b
 				+ " -c 1 --id " + identity
-				+ " -k 0 -f 6 qseqid sseqid qstart qend qlen sstart send slen pident length -o " + out + " -p " + cores;
+				+ " -k 0 -f 6 qseqid sseqid qstart qend qlen sstart send slen pident btop -o " + out + " -p " + cores;
 		if (tmpFile != null)
 			cmd += " -t " + tmpFile.getAbsolutePath();
 		executingCommand(cmd);

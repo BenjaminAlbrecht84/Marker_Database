@@ -36,10 +36,10 @@ public class Selecting {
             try {
                 for (FastaEntry protein : clusteringProteins) {
                     String acc = protein.getName();
-                    ArrayList<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(acc, table);
+                    List<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(acc, table);
                     boolean isUnique = true;
                     for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
-                        double qLen = ali.getQlen(), sLen = ali.getSlen();
+                        double qLen = ali.getQueryLen(), sLen = ali.getSubjectLen();
                         if (qLen < RefseqManager.MIN_LENGTH || sLen < RefseqManager.MIN_LENGTH)
                             continue;
                         String refGenus = getRank(mappingDatabase.getTaxIdByAcc(ali.getRef()), "genus");

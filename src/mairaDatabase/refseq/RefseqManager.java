@@ -2,6 +2,7 @@ package mairaDatabase.refseq;
 
 import java.io.File;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 import mairaDatabase.refseq.step0_downloading.NCBIDownloader;
 import mairaDatabase.refseq.step0_downloading.ProteinDownloadManager;
@@ -62,7 +63,7 @@ public class RefseqManager {
 
 		Cleaner.apply(srcFolder, database);
 		long runtime = (System.currentTimeMillis() - time) / 1000;
-		System.out.println("Total runtime: " + runtime + "ms");
+		System.out.println("Total runtime: " +  LocalTime.ofSecondOfDay(runtime).toString());
 
 	}
 

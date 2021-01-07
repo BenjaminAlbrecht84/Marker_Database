@@ -6,17 +6,16 @@ import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
+import jloda.util.Pair;
 import mairaDatabase.refseq.RefseqManager;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase.AlignmentInfo;
 import mairaDatabase.utils.FastaReader;
-import mairaDatabase.utils.SparseString;
 import mairaDatabase.utils.FastaReader.FastaEntry;
+import mairaDatabase.utils.SparseString;
 
 public class Clustering {
 
@@ -51,14 +50,15 @@ public class Clustering {
 			if (!v.isDominated()) {
 				List<AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
 				for (AlignmentInfo ali : alis) {
-					double qLen = ali.getQlen(), slen = ali.getSlen();
+					double qLen = ali.getQueryLen(), slen = ali.getSubjectLen();
 					ClusterNode w = acc2node.get(ali.getRef());
-					if (w == null || w.isDominated() || qLen < RefseqManager.MIN_LENGTH
-							|| slen < RefseqManager.MIN_LENGTH)
+					if (w == null || qLen < RefseqManager.MIN_LENGTH || slen < RefseqManager.MIN_LENGTH)
+						continue;
+					if (w.isDominated())
 						continue;
 					boolean isSelfHit = ali.getQuery().equals(ali.getRef());
 					if (!isSelfHit && ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD) {
-						w.setDominatedBy(v);
+						w.setDominatedBy(v, ali);
 						selectedNodes--;
 					}
 				}
@@ -79,8 +79,12 @@ public class Clustering {
 						proteinsWriter.write(">" + acc + "\n" + seq + "\n");
 						written++;
 					} else if (mode == ClusteringMode.GENUS_DB) {
-						for (ClusterNode w : v.getDominatedBy())
-							dominationWriter.write(v.getAcc() + "\t" + w.getAcc() + "\n");
+						Pair<ClusterNode, AlignmentInfo> pair = v.getDominatedBy();
+						ClusterNode dominator = pair.getFirst();
+						AlignmentInfo aliInfo = pair.getSecond();
+						dominationWriter.write(v.getAcc() + "\t" + dominator.getAcc() + "\t" + aliInfo.getBtop() + "\t"
+								+ aliInfo.getQueryStart() + "\t" + aliInfo.getSubjectStart() + "\t"
+								+ aliInfo.getSubjectLen() + "\n");						
 					}
 				}
 			} finally {
@@ -98,7 +102,7 @@ public class Clustering {
 
 		private int outDegree;
 		private SparseString acc;
-		private Set<ClusterNode> dominatedBy = new HashSet<>();
+		private Pair<ClusterNode, AlignmentInfo> dominatedBy;
 
 		public ClusterNode(SparseString acc, int outDegree) {
 			this.acc = acc;
@@ -114,15 +118,15 @@ public class Clustering {
 			return acc.toString();
 		}
 
-		public void setDominatedBy(ClusterNode v) {
-			dominatedBy.add(v);
+		public void setDominatedBy(ClusterNode v, AlignmentInfo aliInfo) {
+			dominatedBy = new Pair<>(v, aliInfo);
 		}
 
 		public boolean isDominated() {
-			return !dominatedBy.isEmpty();
+			return dominatedBy != null;
 		}
 
-		public Set<ClusterNode> getDominatedBy() {
+		public Pair<ClusterNode, AlignmentInfo> getDominatedBy() {
 			return dominatedBy;
 		}
 

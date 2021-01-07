@@ -41,7 +41,7 @@ public class BashHelper {
 				ellaWriter.write("size=$3\n");
 
 				// writing marker db commands
-				for (File f : markerDir.listFiles()) {
+				for (File f : markerDir.listFiles((dir, name)-> name.toLowerCase().endsWith(".faa"))) {
 
 					String diamondDb = replaceSuffix(f, "dmnd").replace("genus", "diamond");
 					diamondWriter.write("$exe makedb --in " + f.getAbsolutePath() + " -d " + diamondDb + " -p $cpus\n");

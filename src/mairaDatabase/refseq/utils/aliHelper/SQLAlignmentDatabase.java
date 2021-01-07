@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -27,10 +28,10 @@ public class SQLAlignmentDatabase {
 			stmt.execute("PRAGMA temp_store_directory = '" + tmpDir.getAbsolutePath() + "'");
 			String clusterTable = genus + "_clusterTable";
 			stmt.execute("CREATE TABLE IF NOT EXISTS " + clusterTable
-					+ " (qacc TEXT, racc TEXT, qstart integer, qend integer, qlen integer, sstart integer, send integer, slen integer, pident double, length integer)");
+					+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
 			String markerTable = genus + "_markerTable";
 			stmt.execute("CREATE TABLE IF NOT EXISTS " + markerTable
-					+ " (qacc TEXT, racc TEXT, qstart integer, qend integer, qlen integer, sstart integer, send integer, slen integer, pident double, length integer)");
+					+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
 		} catch (ClassNotFoundException ex) {
 			Logger.getLogger(SQLMappingDatabase.class.getName()).log(Level.SEVERE, null, ex);
 		} catch (SQLException ex) {
@@ -70,8 +71,8 @@ public class SQLAlignmentDatabase {
 		}
 	}
 
-	public ArrayList<AlignmentInfo> getAlignments(String acc, String table) {
-		ArrayList<AlignmentInfo> alis = new ArrayList<>();
+	public List<AlignmentInfo> getAlignments(String acc, String table) {
+		List<AlignmentInfo> alis = new ArrayList<>();
 		String sql = "SELECT * FROM " + table + " WHERE qacc='" + acc + "'";
 		try {
 			ResultSet rs = stmt.executeQuery(sql);
@@ -96,7 +97,7 @@ public class SQLAlignmentDatabase {
 
 	public class AlignmentInfo {
 
-		private String query, ref;
+		private String query, ref, btop;
 		private double identity;
 		private double qstart, qend, qlen;
 		private double sstart, send, slen;
@@ -104,21 +105,30 @@ public class SQLAlignmentDatabase {
 		public AlignmentInfo(ResultSet rs) throws SQLException {
 			this.query = rs.getString(1);
 			this.ref = rs.getString(2);
-			this.qstart = rs.getDouble(3);
-			this.qend = rs.getDouble(4);
-			this.qlen = rs.getDouble(5);
-			this.sstart = rs.getDouble(6);
-			this.send = rs.getDouble(7);
-			this.slen = rs.getDouble(8);
+			this.qstart = rs.getInt(3);
+			this.qend = rs.getInt(4);
+			this.qlen = rs.getInt(5);
+			this.sstart = rs.getInt(6);
+			this.send = rs.getInt(7);
+			this.slen = rs.getInt(8);
 			this.identity = rs.getDouble(9);
+			this.btop = rs.getString(10);
 		}
 
-		public double getQlen() {
-			return qlen;
+		public int getQueryStart() {
+			return (int) qstart;
 		}
 
-		public double getSlen() {
-			return slen;
+		public int getSubjectStart() {
+			return (int) sstart;
+		}
+
+		public int getQueryLen() {
+			return (int) qlen;
+		}
+
+		public int getSubjectLen() {
+			return (int) slen;
 		}
 
 		public String getQuery() {
@@ -141,6 +151,10 @@ public class SQLAlignmentDatabase {
 			return (Math.abs(sstart - send) / slen) * 100.;
 		}
 
+		public String getBtop() {
+			return btop;
+		}
+
 		public String toString() {
 			return query + " " + ref + " " + getQueryCoverage() + " " + getRefCoverage() + " " + identity;
 		}
@@ -158,7 +172,7 @@ public class SQLAlignmentDatabase {
 				stmt.execute("DROP INDEX IF EXISTS " + tableName + "Index");
 			}
 			stmt.execute("CREATE TABLE IF NOT EXISTS " + tableName
-					+ " (qacc TEXT, racc TEXT, qstart integer, qend integer, qlen integer, sstart integer, send integer, slen integer, pident double, length integer)");
+					+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
 
 			long runtime = (System.currentTimeMillis() - time) / 1000;
 			if (src != null) {
@@ -202,7 +216,7 @@ public class SQLAlignmentDatabase {
 					final int send = seq.length();
 					final int slen = seq.length();
 					final double pident = 100;
-					final int length = seq.length();
+					final String btop = seq.length() + "M";
 					insertStmd.setString(1, qacc);
 					insertStmd.setString(2, racc);
 					insertStmd.setInt(3, qstart);
@@ -212,7 +226,7 @@ public class SQLAlignmentDatabase {
 					insertStmd.setInt(7, send);
 					insertStmd.setInt(8, slen);
 					insertStmd.setDouble(9, pident);
-					insertStmd.setInt(10, length);
+					insertStmd.setString(10, btop);
 					insertStmd.execute();
 					count++;
 				}
@@ -244,7 +258,7 @@ public class SQLAlignmentDatabase {
 						final int send = Integer.parseInt(tokens[6]);
 						final int slen = Integer.parseInt(tokens[7]);
 						final double pident = Double.parseDouble(tokens[8]);
-						final int length = Integer.parseInt(tokens[9]);
+						final String btop = tokens[9];
 						insertStmd.setString(1, qacc);
 						insertStmd.setString(2, racc);
 						insertStmd.setInt(3, qstart);
@@ -254,7 +268,7 @@ public class SQLAlignmentDatabase {
 						insertStmd.setInt(7, send);
 						insertStmd.setInt(8, slen);
 						insertStmd.setDouble(9, pident);
-						insertStmd.setInt(10, length);
+						insertStmd.setString(10, btop);
 						insertStmd.execute();
 						count++;
 					}

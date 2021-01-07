@@ -48,7 +48,7 @@ public class Filtering {
 		HashMap<String, Integer> gcf2Counts = new HashMap<>();
 		try {
 			for (MarkerNode v : markerNodes) {
-				HashMap<String, Integer> localCounts = new HashMap<>();
+				Map<String, Integer> localCounts = new HashMap<>();
 				for (String gcf : getCoveredGenomes(v, acc2node)) {
 					gcf2Counts.putIfAbsent(gcf, 0);
 					localCounts.putIfAbsent(gcf, 0);
@@ -83,7 +83,7 @@ public class Filtering {
 		// writing out marker protein weights
 		for (MarkerNode v : acc2node.values()) {
 			if (v.isSelected()) {
-				ArrayList<Double> gcfFactors = new ArrayList<>();
+				List<Double> gcfFactors = new ArrayList<>();
 				for (String gcf : getCoveredGenomes(v, acc2node))
 					gcfFactors.add(1. / (double) gcf2Counts.get(gcf));
 				double mean = Statistics.getMean(gcfFactors);
@@ -101,11 +101,11 @@ public class Filtering {
 
 	}
 
-	private HashSet<String> getCoveredGenomes(MarkerNode v, HashMap<String, MarkerNode> acc2node) {
-		ArrayList<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
-		HashSet<String> coveredGenomes = new HashSet<>();
+	private Set<String> getCoveredGenomes(MarkerNode v, HashMap<String, MarkerNode> acc2node) {
+		List<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
+		Set<String> coveredGenomes = new HashSet<>();
 		for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
-			double qLen = ali.getQlen(), slen = ali.getSlen();
+			double qLen = ali.getQueryLen(), slen = ali.getSubjectLen();
 			MarkerNode w = acc2node.get(ali.getRef());
 			if (w == null || qLen < RefseqManager.MIN_LENGTH || slen < RefseqManager.MIN_LENGTH)
 				continue;

@@ -176,20 +176,28 @@ public class SQLMairaDatabase {
 
 			System.out.println(">Creating SQL Table " + table);
 			rL.setTime();
-			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, dominator TEXT)");
+			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, dominator TEXT, btop TEXT, qstart INTEGER, sstart INTEGER, slen INTEGER)");
 			stmt.execute("DELETE FROM " + table);
 			c.setAutoCommit(false);
 			int count = 0;
 			rL.setMaxProgress(genusDominationFile.length());
-			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?);");
+			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?, ?, ?, ?)");
 					BufferedReader buf = new BufferedReader(new FileReader(genusDominationFile));) {
 				String line;
 				while ((line = buf.readLine()) != null) {
 					final String[] tokens = line.split("\t");
 					final String accession = tokens[0];
 					final String dominator = tokens[1];
+					final String btop = tokens[2];
+					final Integer qstart = Integer.parseInt(tokens[3]);
+					final Integer sstart = Integer.parseInt(tokens[4]);
+					final Integer slen = Integer.parseInt(tokens[5]);
 					insertStmd.setString(1, accession);
 					insertStmd.setString(2, dominator);
+					insertStmd.setString(3, btop);
+					insertStmd.setInt(4, qstart);
+					insertStmd.setInt(5, sstart);
+					insertStmd.setInt(6, slen);
 					insertStmd.execute();
 					count++;
 					rL.reportProgress(line.length() + 1);
