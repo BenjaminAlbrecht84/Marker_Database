@@ -16,10 +16,10 @@ import mairaDatabase.refseq.utils.DiamondRunner;
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.utils.FastaReader;
+import mairaDatabase.utils.FastaReader.FastaEntry;
 import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.ResourceLoader;
 import mairaDatabase.utils.SQLMappingDatabase;
-import mairaDatabase.utils.FastaReader.FastaEntry;
 import mairaDatabase.utils.taxTree.TaxNode;
 import mairaDatabase.utils.taxTree.TaxTree;
 
@@ -27,6 +27,8 @@ public class MarkerManager {
 
 	private ResourceLoader rL = new ResourceLoader();
 	private File markerOutputFolder;
+	private List<File> faaFiles;
+	private int faaFilePointer = 0;
 
 	public void runMarker(String rank, String srcPath, String aliFolder, File markerClusterFolder, TaxTree taxTree,
 			SQLMappingDatabase mappingDatabase, int cores, int memory, int identity, File tmpFile, String diamondBin) {
@@ -35,7 +37,7 @@ public class MarkerManager {
 
 			markerOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins");
 			markerOutputFolder.mkdir();
-			List<File> faaFiles = new ArrayList<>(Arrays.asList(
+			faaFiles = new ArrayList<>(Arrays.asList(
 					markerClusterFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"))));
 			Collections.sort(faaFiles, Comparator.comparingLong(File::length).reversed());
 			long totalFileLength = 0L;
@@ -45,9 +47,10 @@ public class MarkerManager {
 			System.out.println(">Assessing newly computed representatives for " + faaFiles.size() + " protein sets");
 			rL.setTime();
 			List<Runnable> collectNewProteinsThreads = new ArrayList<>();
-			for (File faaFile : faaFiles)
-				collectNewProteinsThreads.add(new CollectNewProteinsThread(faaFile, tmpFile,
-						markerOutputFolder.getAbsolutePath(), aliFolder));
+			faaFilePointer = 0;
+			for (int i = 0; i < cores; i++)
+				collectNewProteinsThreads
+						.add(new CollectNewProteinsThread(tmpFile, markerOutputFolder.getAbsolutePath(), aliFolder));
 			rL.runThreads(cores, collectNewProteinsThreads, totalFileLength);
 
 			System.out.println(">Aligning new vs all proteins using DIAMOND");
@@ -75,7 +78,8 @@ public class MarkerManager {
 			newClusteredProteins.deleteOnExit();
 			for (File f : markerOutputFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
 				appendToFile(f, newClusteredProteins);
-			File newClusterDb = newClusteredProteins.exists() ? DiamondRunner.makedb(newClusteredProteins, cores, diamondBin)
+			File newClusterDb = newClusteredProteins.exists()
+					? DiamondRunner.makedb(newClusteredProteins, cores, diamondBin)
 					: null;
 			newClusterDb.deleteOnExit();
 			newClusteredProteins.delete();
@@ -84,7 +88,8 @@ public class MarkerManager {
 			allProteins.deleteOnExit();
 			for (File f : faaFiles)
 				appendToFile(allProteins, f);
-			File tabFile2 = DiamondRunner.blastp(newClusterDb, allProteins, tmpFile, identity, memory, cores, diamondBin);
+			File tabFile2 = DiamondRunner.blastp(newClusterDb, allProteins, tmpFile, identity, memory, cores,
+					diamondBin);
 			allProteins.delete();
 			newClusterDb.delete();
 			System.out.println("Runtime: " + rL.getUptime());
@@ -92,21 +97,25 @@ public class MarkerManager {
 			System.out.println(">Processing DIAMOND result for " + faaFiles.size() + " genera");
 			List<Runnable> processingTabFileThreads = new ArrayList<>();
 			File[] tabFiles = { tabFile1, tabFile2 };
-			for (File faaFile : faaFiles)
-				processingTabFileThreads.add(new ProcessingTabFileThread(faaFile, tabFiles, aliFolder, tmpFile, taxTree,
+			faaFilePointer = 0;
+			for (int i = 0; i < cores; i++)
+				processingTabFileThreads.add(new ProcessingTabFileThread(tabFiles, aliFolder, tmpFile, taxTree,
 						mappingDatabase, markerOutputFolder));
 			rL.runThreads(1, processingTabFileThreads, totalFileLength);
 
 			System.out.println(">Computing marker proteins for " + faaFiles.size() + " protein sets");
 			List<Runnable> selectMarkersThreads = new ArrayList<>();
-			for (File faaFile : faaFiles)
-				selectMarkersThreads.add(new SelectMarkersThread(faaFile, tmpFile, identity, aliFolder,
-						markerOutputFolder, taxTree, mappingDatabase));
+			faaFilePointer = 0;
+			for (int i = 0; i < cores; i++)
+				selectMarkersThreads.add(new SelectMarkersThread(tmpFile, identity, aliFolder, markerOutputFolder,
+						taxTree, mappingDatabase));
 			rL.runThreads(cores, selectMarkersThreads, totalFileLength);
 
 			// removing new files
-			for (Runnable t : collectNewProteinsThreads)
-				((CollectNewProteinsThread) t).newFile.delete();
+			for (Runnable t : collectNewProteinsThreads) {
+				List<File> toDelete = ((CollectNewProteinsThread) t).newFiles;
+				toDelete.stream().forEach(f -> f.delete());
+			}
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -116,6 +125,12 @@ public class MarkerManager {
 
 	}
 
+	private synchronized File nextFaaFile() {
+		if (faaFilePointer < faaFiles.size())
+			return faaFiles.get(faaFilePointer++);
+		return null;
+	}
+
 	public File getMarkerOutputFolder() {
 		return markerOutputFolder;
 	}
@@ -123,14 +138,13 @@ public class MarkerManager {
 	private class SelectMarkersThread implements Runnable {
 
 		private String outFolder, aliFolder;
-		private File faaFile, tmpFile;
+		private File tmpFile;
 		private int identity;
 		private TaxTree taxTree;
 		private SQLMappingDatabase mappingDatabase;
 
-		public SelectMarkersThread(File faaFile, File tmpFile, int identity, String aliFolder, File outFolder,
-				TaxTree taxTree, SQLMappingDatabase mappingDatabase) {
-			this.faaFile = faaFile;
+		public SelectMarkersThread(File tmpFile, int identity, String aliFolder, File outFolder, TaxTree taxTree,
+				SQLMappingDatabase mappingDatabase) {
 			this.tmpFile = tmpFile;
 			this.identity = identity;
 			this.aliFolder = aliFolder;
@@ -141,13 +155,16 @@ public class MarkerManager {
 
 		@Override
 		public void run() {
-			String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-			SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-			File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
-			new Selecting().run(genus, taxTree, mappingDatabase, aliDatabase, faaFile, outFile, identity, identity);
-			aliDatabase.close();
-			mappingDatabase.close();
-			rL.reportProgress(faaFile.length());
+			File faaFile;
+			while ((faaFile = nextFaaFile()) != null) {
+				String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
+				SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+				File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
+				new Selecting().run(genus, taxTree, mappingDatabase, aliDatabase, faaFile, outFile, identity, identity);
+				aliDatabase.close();
+				mappingDatabase.close();
+				rL.reportProgress(faaFile.length());
+			}
 			rL.countDown();
 		}
 
@@ -156,14 +173,13 @@ public class MarkerManager {
 	private class ProcessingTabFileThread implements Runnable {
 
 		private File[] tabFiles;
-		private File faaFile, tmpFile, outFolder;
+		private File tmpFile, outFolder;
 		private String aliFolder;
 		private TaxTree taxTree;
 		private SQLMappingDatabase mappingDatabase;
 
-		public ProcessingTabFileThread(File faaFile, File[] tabFiles, String aliFolder, File tmpFile, TaxTree taxTree,
+		public ProcessingTabFileThread(File[] tabFiles, String aliFolder, File tmpFile, TaxTree taxTree,
 				SQLMappingDatabase mappingDatabase, File outFolder) {
-			this.faaFile = faaFile;
 			this.tabFiles = tabFiles;
 			this.aliFolder = aliFolder;
 			this.tmpFile = tmpFile;
@@ -175,36 +191,40 @@ public class MarkerManager {
 		@Override
 		public void run() {
 
-			String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-			File tabFile = new File(outFolder + File.separator + genus + "_marker.tab");
-			tabFile.deleteOnExit();
-			try {
-				BufferedWriter writer = new BufferedWriter(new FileWriter(tabFile));
-				for (File tab : tabFiles) {
-					if (tab == null || !tab.exists() || tab.length() == 0)
-						continue;
-					BufferedReader buf = new BufferedReader(new FileReader(tab));
-					String line;
-					while ((line = buf.readLine()) != null) {
-						final String[] tokens = line.split("\t");
-						final String qacc = tokens[0];
-						final String g = getRank(mappingDatabase.getTaxIdByAcc(qacc), "genus");
-						if (g != null && g.equals(genus))
-							writer.write(line + "\n");
+			File faaFile;
+			while ((faaFile = nextFaaFile()) != null) {
+				String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
+				File tabFile = new File(outFolder + File.separator + genus + "_marker.tab");
+				tabFile.deleteOnExit();
+				try {
+					BufferedWriter writer = new BufferedWriter(new FileWriter(tabFile));
+					for (File tab : tabFiles) {
+						if (tab == null || !tab.exists() || tab.length() == 0)
+							continue;
+						BufferedReader buf = new BufferedReader(new FileReader(tab));
+						String line;
+						while ((line = buf.readLine()) != null) {
+							final String[] tokens = line.split("\t");
+							final String qacc = tokens[0];
+							final String g = getRank(mappingDatabase.getTaxIdByAcc(qacc), "genus");
+							if (g != null && g.equals(genus))
+								writer.write(line + "\n");
+						}
+						buf.close();
 					}
-					buf.close();
+					writer.close();
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
-				writer.close();
-			} catch (Exception e) {
-				e.printStackTrace();
+
+				SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+				aliDatabase.addAlignmentTable(genus + "_markerTable", null, tabFile, false);
+				tabFile.delete();
+				aliDatabase.close();
+				rL.reportProgress(faaFile.length());
 			}
 
-			SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-			aliDatabase.addAlignmentTable(genus + "_markerTable", null, tabFile, false);
-			tabFile.delete();
-			aliDatabase.close();
 			mappingDatabase.close();
-			rL.reportProgress(faaFile.length());
 			rL.countDown();
 
 		}
@@ -232,12 +252,11 @@ public class MarkerManager {
 
 	private class CollectNewProteinsThread implements Runnable {
 
-		private File faaFile, tmpFile;
+		private File tmpFile;
 		private String outFolder, aliFolder;
-		private File newFile;
+		private List<File> newFiles = new ArrayList<>();
 
-		public CollectNewProteinsThread(File faaFile, File tmpFile, String outFolder, String aliFolder) {
-			this.faaFile = faaFile;
+		public CollectNewProteinsThread(File tmpFile, String outFolder, String aliFolder) {
 			this.tmpFile = tmpFile;
 			this.outFolder = outFolder;
 			this.aliFolder = aliFolder;
@@ -246,27 +265,32 @@ public class MarkerManager {
 		@Override
 		public void run() {
 
-			String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-			SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+			File faaFile;
+			while ((faaFile = nextFaaFile()) != null) {
+				String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
+				SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
 
-			try {
+				try {
 
-				newFile = new File(outFolder + File.separator + genus + "_new.faa");
-				newFile.createNewFile();
-				BufferedWriter writer = new BufferedWriter(new FileWriter(newFile));
-				ArrayList<FastaEntry> tokens = FastaReader.read(faaFile);
-				for (FastaEntry o : tokens) {
-					String acc = o.getName();
-					if (!sqlAliDatabase.containsAcc(acc, genus + "_markerTable"))
-						writer.write(">" + acc + "\n" + o.getSequence() + "\n");
+					File newFile = new File(outFolder + File.separator + genus + "_new.faa");
+					newFile.createNewFile();
+					newFiles.add(newFile);
+					BufferedWriter writer = new BufferedWriter(new FileWriter(newFile));
+					ArrayList<FastaEntry> tokens = FastaReader.read(faaFile);
+					for (FastaEntry o : tokens) {
+						String acc = o.getName();
+						if (!sqlAliDatabase.containsAcc(acc, genus + "_markerTable"))
+							writer.write(">" + acc + "\n" + o.getSequence() + "\n");
+					}
+					writer.close();
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
-				writer.close();
-			} catch (Exception e) {
-				e.printStackTrace();
+
+				sqlAliDatabase.close();
+				rL.reportProgress(faaFile.length());
 			}
 
-			sqlAliDatabase.close();
-			rL.reportProgress(faaFile.length());
 			rL.countDown();
 		}
 	}
