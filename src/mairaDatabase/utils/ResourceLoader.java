@@ -42,7 +42,7 @@ public class ResourceLoader {
 			executor.shutdown();
 	}
 	
-	public synchronized void countDown() {
+	public void countDown() {
 		if(latch != null)
 			latch.countDown();
 	}
