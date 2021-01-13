@@ -170,7 +170,7 @@ public class ProteinDownloadManager {
 
 		private boolean isSeenAccession(Map<String, Map<Integer, Set<String>>> seenAccessionMap, String acc) {
 			String prefix = acc.split("_")[0];
-			int id = acc.contains(".") ? Integer.parseInt(acc.split("_")[1].replaceAll("\\.", "")) : 0;
+			int id = acc.contains("_") ? Integer.parseInt(acc.split("_")[1].replaceAll("\\.", "")) : 0;
 			int bucket = id % 10;
 			if (!seenAccessionMap.containsKey(prefix) || !seenAccessionMap.get(prefix).containsKey(bucket)
 					|| !seenAccessionMap.get(prefix).get(bucket).contains(acc))

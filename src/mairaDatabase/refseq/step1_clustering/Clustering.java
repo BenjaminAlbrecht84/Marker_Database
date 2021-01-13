@@ -27,7 +27,7 @@ public class Clustering {
 	private final static int MIN_PROTEINS_CLUSTER = 1000;
 
 	public void run(String genus, SQLAlignmentDatabase alignmentDatabase, File faaFile, File proteinOutFile,
-			BufferedWriter dominationWriter, int MIN_ID, ClusteringMode mode) {
+			BufferedWriter dominationWriter, int MIN_ID, ClusteringMode mode) throws Exception {
 
 		String table = genus + "_clusterTable";
 		COV_THRESHOLD = MIN_ID;
@@ -68,31 +68,26 @@ public class Clustering {
 		}
 
 		long written = 0;
-		try {
-			BufferedWriter proteinsWriter = new BufferedWriter(new FileWriter(proteinOutFile));
-			try {
-				for (FastaEntry protein : genusProteins) {
-					String acc = protein.getName();
-					String seq = protein.getSequence();
-					ClusterNode v = acc2node.get(acc);
-					if (!v.isDominated()) {
-						proteinsWriter.write(">" + acc + "\n" + seq + "\n");
-						written++;
-					} else if (mode == ClusteringMode.GENUS_DB) {
-						Pair<ClusterNode, AlignmentInfo> pair = v.getDominatedBy();
-						ClusterNode dominator = pair.getFirst();
-						AlignmentInfo aliInfo = pair.getSecond();
-						dominationWriter.write(v.getAcc() + "\t" + dominator.getAcc() + "\t" + aliInfo.getBtop() + "\t"
-								+ aliInfo.getQueryStart() + "\t" + aliInfo.getSubjectStart() + "\t"
-								+ aliInfo.getSubjectLen() + "\n");						
-					}
+
+		try (BufferedWriter proteinsWriter = new BufferedWriter(new FileWriter(proteinOutFile))) {
+			for (FastaEntry protein : genusProteins) {
+				String acc = protein.getName();
+				String seq = protein.getSequence();
+				ClusterNode v = acc2node.get(acc);
+				if (!v.isDominated()) {
+					proteinsWriter.write(">" + acc + "\n" + seq + "\n");
+					written++;
+				} else if (mode == ClusteringMode.GENUS_DB) {
+					Pair<ClusterNode, AlignmentInfo> pair = v.getDominatedBy();
+					ClusterNode dominator = pair.getFirst();
+					AlignmentInfo aliInfo = pair.getSecond();
+					dominationWriter.write(v.getAcc() + "\t" + dominator.getAcc() + "\t" + aliInfo.getBtop() + "\t"
+							+ aliInfo.getQueryStart() + "\t" + aliInfo.getSubjectStart() + "\t"
+							+ aliInfo.getSubjectLen() + "\n");
 				}
-			} finally {
-				proteinsWriter.close();
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
+
 		long runtime = (System.currentTimeMillis() - time) / 1000;
 		System.err.println(genus + ": " + written + " proteins reported (" + runtime + "s)");
 

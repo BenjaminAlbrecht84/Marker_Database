@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -157,12 +158,18 @@ public class MarkerManager {
 		public void run() {
 			File faaFile;
 			while ((faaFile = nextFaaFile()) != null) {
-				String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-				SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-				File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
-				new Selecting().run(genus, taxTree, mappingDatabase, aliDatabase, faaFile, outFile, identity, identity);
-				aliDatabase.close();
-				mappingDatabase.close();
+				try {
+					String genus = Formatter
+							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
+					SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+					File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
+					new Selecting().run(genus, taxTree, mappingDatabase, aliDatabase, faaFile, outFile, identity,
+							identity);
+					aliDatabase.close();
+					mappingDatabase.close();
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 				rL.reportProgress(faaFile.length());
 			}
 			rL.countDown();
@@ -213,15 +220,14 @@ public class MarkerManager {
 						buf.close();
 					}
 					writer.close();
+					SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+					aliDatabase.addAlignmentTable(genus + "_markerTable", null, tabFile, false);
+					tabFile.delete();
+					aliDatabase.close();
+					rL.reportProgress(faaFile.length());
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-
-				SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-				aliDatabase.addAlignmentTable(genus + "_markerTable", null, tabFile, false);
-				tabFile.delete();
-				aliDatabase.close();
-				rL.reportProgress(faaFile.length());
 			}
 
 			mappingDatabase.close();
@@ -267,11 +273,10 @@ public class MarkerManager {
 
 			File faaFile;
 			while ((faaFile = nextFaaFile()) != null) {
-				String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-				SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-
 				try {
-
+					String genus = Formatter
+							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
+					SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
 					File newFile = new File(outFolder + File.separator + genus + "_new.faa");
 					newFile.createNewFile();
 					newFiles.add(newFile);
@@ -283,11 +288,10 @@ public class MarkerManager {
 							writer.write(">" + acc + "\n" + o.getSequence() + "\n");
 					}
 					writer.close();
+					sqlAliDatabase.close();
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-
-				sqlAliDatabase.close();
 				rL.reportProgress(faaFile.length());
 			}
 
@@ -299,7 +303,8 @@ public class MarkerManager {
 		return new SQLMappingDatabase(mappingDatabase);
 	}
 
-	private synchronized SQLAlignmentDatabase createAlignmentDatabase(String aliFolder, String genus, File tmpFile) {
+	private synchronized SQLAlignmentDatabase createAlignmentDatabase(String aliFolder, String genus, File tmpFile)
+			throws ClassNotFoundException, SQLException {
 		return new SQLAlignmentDatabase(aliFolder, genus, tmpFile);
 	}
 

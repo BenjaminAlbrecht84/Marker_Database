@@ -3,6 +3,7 @@ package mairaDatabase.refseq.step1_clustering;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,9 +83,9 @@ public class ClusterManager {
 				BufferedWriter dominationWriter = new BufferedWriter(new FileWriter(genusDominationFile));
 				try {
 					faaFilePointer = 0;
-					for (int i = 0; i < cores; i++) 
-						clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(tmpFile, null,
-								dominationWriter, aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
+					for (int i = 0; i < cores; i++)
+						clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(tmpFile, null, dominationWriter,
+								aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
 					rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
 				} finally {
 					dominationWriter.close();
@@ -244,21 +245,25 @@ public class ClusterManager {
 		public void run() {
 			File faaFile;
 			while ((faaFile = nextFaaFile()) != null) {
-				String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("\\.faa", ""));
-				if (mode == ClusteringMode.GENUS_DB) {
-					File genusOutFolder = new File(genusFolder + File.separator + getGenus(faaFile));
-					genusOutFolder.mkdir();
-					outFolder = genusOutFolder.getAbsolutePath();
+				try {
+					String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("\\.faa", ""));
+					if (mode == ClusteringMode.GENUS_DB) {
+						File genusOutFolder = new File(genusFolder + File.separator + getGenus(faaFile));
+						genusOutFolder.mkdir();
+						outFolder = genusOutFolder.getAbsolutePath();
+					}
+					SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+					String fileName = mode == ClusteringMode.MARKER_DB
+							? faaFile.getName().replaceAll("\\.faa", "_clustered.faa")
+							: faaFile.getName();
+					File proteinOutFile = new File(outFolder + File.separator + fileName);
+					proteinOutFile.delete();
+					new Clustering().run(genus, aliDatabase, faaFile, proteinOutFile, dominationWriter, identity, mode);
+					mappingDatabase.close();
+					aliDatabase.close();
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
-				SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-				String fileName = mode == ClusteringMode.MARKER_DB
-						? faaFile.getName().replaceAll("\\.faa", "_clustered.faa")
-						: faaFile.getName();
-				File proteinOutFile = new File(outFolder + File.separator + fileName);
-				proteinOutFile.delete();
-				new Clustering().run(genus, aliDatabase, faaFile, proteinOutFile, dominationWriter, identity, mode);
-				mappingDatabase.close();
-				aliDatabase.close();
 				rL.reportProgress(faaFile.length());
 			}
 			rL.countDown();
@@ -270,7 +275,8 @@ public class ClusterManager {
 		return new SQLMappingDatabase(mappingDatabase);
 	}
 
-	private synchronized SQLAlignmentDatabase createAlignmentDatabase(String aliFolder, String genus, File tmpFile) {
+	private synchronized SQLAlignmentDatabase createAlignmentDatabase(String aliFolder, String genus, File tmpFile)
+			throws ClassNotFoundException, SQLException {
 		return new SQLAlignmentDatabase(aliFolder, genus, tmpFile);
 	}
 

@@ -19,24 +19,18 @@ public class SQLAlignmentDatabase {
 	private Connection c;
 	private Statement stmt;
 
-	public SQLAlignmentDatabase(String databaseFolder, String genus, File tmpDir) {
-		try {
-			this.databaseFile = databaseFolder + File.separator + genus + ".db";
-			Class.forName("org.sqlite.JDBC");
-			c = DriverManager.getConnection("jdbc:sqlite:" + this.databaseFile);
-			stmt = c.createStatement();
-			stmt.execute("PRAGMA temp_store_directory = '" + tmpDir.getAbsolutePath() + "'");
-			String clusterTable = genus + "_clusterTable";
-			stmt.execute("CREATE TABLE IF NOT EXISTS " + clusterTable
-					+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
-			String markerTable = genus + "_markerTable";
-			stmt.execute("CREATE TABLE IF NOT EXISTS " + markerTable
-					+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
-		} catch (ClassNotFoundException ex) {
-			Logger.getLogger(SQLMappingDatabase.class.getName()).log(Level.SEVERE, null, ex);
-		} catch (SQLException ex) {
-			Logger.getLogger(SQLMappingDatabase.class.getName()).log(Level.SEVERE, null, ex);
-		}
+	public SQLAlignmentDatabase(String databaseFolder, String genus, File tmpDir) throws ClassNotFoundException, SQLException {
+		this.databaseFile = databaseFolder + File.separator + genus + ".db";
+		Class.forName("org.sqlite.JDBC");
+		c = DriverManager.getConnection("jdbc:sqlite:" + this.databaseFile);
+		stmt = c.createStatement();
+		stmt.execute("PRAGMA temp_store_directory = '" + tmpDir.getAbsolutePath() + "'");
+		String clusterTable = genus + "_clusterTable";
+		stmt.execute("CREATE TABLE IF NOT EXISTS " + clusterTable
+				+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
+		String markerTable = genus + "_markerTable";
+		stmt.execute("CREATE TABLE IF NOT EXISTS " + markerTable
+				+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
 	}
 
 	public void close() {

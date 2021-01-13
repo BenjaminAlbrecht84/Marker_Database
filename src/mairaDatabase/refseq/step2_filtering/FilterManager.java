@@ -3,6 +3,7 @@ package mairaDatabase.refseq.step2_filtering;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,22 +73,25 @@ public class FilterManager {
 
 		private File faaFile;
 		private SQLMappingDatabase mappingDatabase;
-		private SQLAlignmentDatabase alignmentDatabase;
 		private String genus;
 
 		public FilterThread(File faaFile, SQLMappingDatabase mappingDatabase) {
 			this.faaFile = faaFile;
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
 			this.genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_marker\\.faa", ""));
-			this.alignmentDatabase = createAlignmentDatabase(genus);
 		}
 
 		@Override
 		public void run() {
-			new Filtering().run(faaFile, genus, factorWriter, markerWriter, taxTree, mappingDatabase, alignmentDatabase,
-					NUM_OF_PROTEINS, MIN_ID);
-			mappingDatabase.close();
-			alignmentDatabase.close();
+			try {
+				SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(genus);
+				new Filtering().run(faaFile, genus, factorWriter, markerWriter, taxTree, mappingDatabase,
+						alignmentDatabase, NUM_OF_PROTEINS, MIN_ID);
+				mappingDatabase.close();
+				alignmentDatabase.close();
+			} catch (ClassNotFoundException | SQLException e) {
+				e.printStackTrace();
+			}
 			rL.reportProgress(1);
 			rL.countDown();
 		}
@@ -97,7 +101,8 @@ public class FilterManager {
 		return new SQLMappingDatabase(mappingDatabase);
 	}
 
-	private synchronized SQLAlignmentDatabase createAlignmentDatabase(String genus) {
+	private synchronized SQLAlignmentDatabase createAlignmentDatabase(String genus)
+			throws ClassNotFoundException, SQLException {
 		return new SQLAlignmentDatabase(aliFolder, genus, tmpDir);
 	}
 

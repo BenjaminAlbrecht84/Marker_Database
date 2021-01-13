@@ -1,6 +1,7 @@
 package mairaDatabase.refseq.utils.aliHelper;
 
 import java.io.File;
+import java.sql.SQLException;
 import java.util.ArrayList;
 
 import mairaDatabase.refseq.utils.DiamondRunner;
@@ -40,7 +41,8 @@ public class AddAlignmentsHelper {
 		return null;
 	}
 
-	private static synchronized SQLAlignmentDatabase createDatabase(String databaseFile, String genus, File tmpDir) {
+	private static synchronized SQLAlignmentDatabase createDatabase(String databaseFile, String genus, File tmpDir)
+			throws ClassNotFoundException, SQLException {
 		return new SQLAlignmentDatabase(databaseFile, genus, tmpDir);
 	}
 
@@ -61,15 +63,19 @@ public class AddAlignmentsHelper {
 		public void run() {
 			File daa;
 			while ((daa = nextDaaFile()) != null) {
-				String genus = Formatter
-						.removeNonAlphanumerics(daa.getName().replaceAll("_clustered", "").replaceAll("\\.daa", ""));
-				SQLAlignmentDatabase aliDb = createDatabase(dbFolder, genus, tmpDir);
-				File tab = DiamondRunner.view(daa, cores, diamondBin);
-				File src = srcFolder != null
-						? new File(srcFolder + File.separator + daa.getName().replaceAll("\\.daa", ".faa"))
-						: null;
-				aliDb.addAlignmentTable(genus + "_" + dbType, src, tab, true);
-				tab.delete();
+				try {
+					String genus = Formatter.removeNonAlphanumerics(
+							daa.getName().replaceAll("_clustered", "").replaceAll("\\.daa", ""));
+					SQLAlignmentDatabase aliDb = createDatabase(dbFolder, genus, tmpDir);
+					File tab = DiamondRunner.view(daa, cores, diamondBin);
+					File src = srcFolder != null
+							? new File(srcFolder + File.separator + daa.getName().replaceAll("\\.daa", ".faa"))
+							: null;
+					aliDb.addAlignmentTable(genus + "_" + dbType, src, tab, true);
+					tab.delete();
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 				rL.reportProgress(1);
 			}
 			rL.countDown();
