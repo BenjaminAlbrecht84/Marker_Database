@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import mairaDatabase.refseq.utils.Formatter;
@@ -24,6 +25,9 @@ public class FilterManager {
 	private String aliFolder;
 	private File tmpDir, weightFile, markerDatabase;
 
+	private List<File> faaFiles;
+	private int faaFilePointer = 0;
+
 	public void run(String rank, String srcPath, String aliFolder, File tmpDir, File markerDir, TaxTree taxTree,
 			SQLMappingDatabase mappingDatabase, int NUM_OF_PROTEINS, int MIN_ID, int cores) {
 
@@ -35,27 +39,32 @@ public class FilterManager {
 		rL.setTime();
 
 		try {
-
+			
+			// creating marker writer
 			markerDatabase = new File(srcPath + File.separator + "marker_db");
 			markerDatabase.mkdir();
 			File markerFile = new File(
 					markerDatabase.getAbsolutePath() + File.separator + "genus_marker_db_" + NUM_OF_PROTEINS + ".faa");
 			markerFile.delete();
 			markerWriter = new BufferedWriter(new FileWriter(markerFile, true));
-
+			
+			// creating factor writer
 			weightFile = new File(srcPath + File.separator + "genus_marker_db_" + NUM_OF_PROTEINS + "_weights.tab");
 			weightFile.delete();
 			factorWriter = new BufferedWriter(new FileWriter(weightFile, true));
 
 			System.out.println(">Filtering marker proteins");
-			File[] faaFiles = markerDir.listFiles();
-			List<Runnable> threads = new ArrayList<>();
-			for (File faaFile : faaFiles)
-				threads.add(new FilterThread(faaFile, mappingDatabase));
-			rL.runThreads(cores, threads, threads.size());
-
-			markerWriter.close();
-			factorWriter.close();
+			try {
+				faaFiles = new ArrayList<>(Arrays.asList(markerDir.listFiles()));
+				List<Runnable> threads = new ArrayList<>();
+				faaFilePointer = 0;
+				for (int i = 0; i < cores; i++)
+					threads.add(new FilterThread(mappingDatabase));
+				rL.runThreads(cores, threads, threads.size());
+			} finally {
+				markerWriter.close();
+				factorWriter.close();
+			}
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -69,30 +78,39 @@ public class FilterManager {
 		return markerDatabase;
 	}
 
+	private synchronized File nextFaaFile() {
+		if (faaFilePointer < faaFiles.size())
+			return faaFiles.get(faaFilePointer++);
+		return null;
+	}
+
 	private class FilterThread implements Runnable {
 
-		private File faaFile;
 		private SQLMappingDatabase mappingDatabase;
-		private String genus;
 
-		public FilterThread(File faaFile, SQLMappingDatabase mappingDatabase) {
-			this.faaFile = faaFile;
+		public FilterThread(SQLMappingDatabase mappingDatabase) {
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
-			this.genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_marker\\.faa", ""));
 		}
 
 		@Override
 		public void run() {
-			try {
-				SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(genus);
-				new Filtering().run(faaFile, genus, factorWriter, markerWriter, taxTree, mappingDatabase,
-						alignmentDatabase, NUM_OF_PROTEINS, MIN_ID);
-				mappingDatabase.close();
-				alignmentDatabase.close();
-			} catch (ClassNotFoundException | SQLException e) {
-				e.printStackTrace();
+			File faaFile;
+			while ((faaFile = nextFaaFile()) != null) {
+				try {
+					String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_marker\\.faa", ""));
+					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(genus);
+					try {
+						new Filtering().run(faaFile, genus, factorWriter, markerWriter, taxTree, mappingDatabase,
+								alignmentDatabase, NUM_OF_PROTEINS, MIN_ID);
+					} finally {
+						alignmentDatabase.close();
+					}
+				} catch (ClassNotFoundException | SQLException e) {
+					e.printStackTrace();
+				}
+				rL.reportProgress(1);
 			}
-			rL.reportProgress(1);
+			mappingDatabase.close();
 			rL.countDown();
 		}
 	}

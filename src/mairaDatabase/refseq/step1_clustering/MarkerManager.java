@@ -161,17 +161,20 @@ public class MarkerManager {
 				try {
 					String genus = Formatter
 							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-					SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-					File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
-					new Selecting().run(genus, taxTree, mappingDatabase, aliDatabase, faaFile, outFile, identity,
-							identity);
-					aliDatabase.close();
-					mappingDatabase.close();
+					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+					try {
+						File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
+						new Selecting().run(genus, taxTree, mappingDatabase, alignmentDatabase, faaFile, outFile,
+								identity, identity);
+					} finally {
+						alignmentDatabase.close();
+					}
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
 				rL.reportProgress(faaFile.length());
 			}
+			mappingDatabase.close();
 			rL.countDown();
 		}
 
@@ -204,26 +207,29 @@ public class MarkerManager {
 				File tabFile = new File(outFolder + File.separator + genus + "_marker.tab");
 				tabFile.deleteOnExit();
 				try {
-					BufferedWriter writer = new BufferedWriter(new FileWriter(tabFile));
-					for (File tab : tabFiles) {
-						if (tab == null || !tab.exists() || tab.length() == 0)
-							continue;
-						BufferedReader buf = new BufferedReader(new FileReader(tab));
-						String line;
-						while ((line = buf.readLine()) != null) {
-							final String[] tokens = line.split("\t");
-							final String qacc = tokens[0];
-							final String g = getRank(mappingDatabase.getTaxIdByAcc(qacc), "genus");
-							if (g != null && g.equals(genus))
-								writer.write(line + "\n");
+					try (BufferedWriter writer = new BufferedWriter(new FileWriter(tabFile))) {
+						for (File tab : tabFiles) {
+							if (tab == null || !tab.exists() || tab.length() == 0)
+								continue;
+							try (BufferedReader buf = new BufferedReader(new FileReader(tab))) {
+								String line;
+								while ((line = buf.readLine()) != null) {
+									final String[] tokens = line.split("\t");
+									final String qacc = tokens[0];
+									final String g = getRank(mappingDatabase.getTaxIdByAcc(qacc), "genus");
+									if (g != null && g.equals(genus))
+										writer.write(line + "\n");
+								}
+							}
 						}
-						buf.close();
 					}
-					writer.close();
 					SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-					aliDatabase.addAlignmentTable(genus + "_markerTable", null, tabFile, false);
-					tabFile.delete();
-					aliDatabase.close();
+					try {
+						aliDatabase.addAlignmentTable(genus + "_markerTable", null, tabFile, false);
+					} finally {
+						tabFile.delete();
+						aliDatabase.close();
+					}
 					rL.reportProgress(faaFile.length());
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -277,18 +283,21 @@ public class MarkerManager {
 					String genus = Formatter
 							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
 					SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-					File newFile = new File(outFolder + File.separator + genus + "_new.faa");
-					newFile.createNewFile();
-					newFiles.add(newFile);
-					BufferedWriter writer = new BufferedWriter(new FileWriter(newFile));
-					ArrayList<FastaEntry> tokens = FastaReader.read(faaFile);
-					for (FastaEntry o : tokens) {
-						String acc = o.getName();
-						if (!sqlAliDatabase.containsAcc(acc, genus + "_markerTable"))
-							writer.write(">" + acc + "\n" + o.getSequence() + "\n");
+					try {
+						File newFile = new File(outFolder + File.separator + genus + "_new.faa");
+						newFile.createNewFile();
+						newFiles.add(newFile);
+						try (BufferedWriter writer = new BufferedWriter(new FileWriter(newFile))) {
+							ArrayList<FastaEntry> tokens = FastaReader.read(faaFile);
+							for (FastaEntry o : tokens) {
+								String acc = o.getName();
+								if (!sqlAliDatabase.containsAcc(acc, genus + "_markerTable"))
+									writer.write(">" + acc + "\n" + o.getSequence() + "\n");
+							}
+						}
+					} finally {
+						sqlAliDatabase.close();
 					}
-					writer.close();
-					sqlAliDatabase.close();
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
