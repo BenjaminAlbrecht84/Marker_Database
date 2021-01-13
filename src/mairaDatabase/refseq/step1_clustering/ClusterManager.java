@@ -35,63 +35,60 @@ public class ClusterManager {
 			SQLMappingDatabase mappingDatabase, int cores, int memory, int markerIdentity, int genusIdentity,
 			File tmpFile, String diamondBin) {
 
-		markerClusterOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins_clustered");
-		markerClusterOutputFolder.mkdir();
-		genusFolder = new File(srcPath + File.separator + rank + "_dbs");
-		genusFolder.mkdir();
-		faaFiles = new ArrayList<>(Arrays
-				.asList(proteinFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"))));
-		Collections.sort(faaFiles, Comparator.comparingLong(File::length).reversed());
-		long totalFileLength = 0L;
-		for (File f : faaFiles)
-			totalFileLength += f.length();
-		int n = faaFiles.size();
-
-		System.out
-				.println(">Assessing new proteins for " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
-		List<Runnable> collectNewProteinsThreads = new ArrayList<>();
-		faaFilePointer = 0;
-		for (int i = 0; i < cores; i++)
-			collectNewProteinsThreads.add(new CollectNewProteinsThread(tmpFile, aliFolder));
-		rL.runThreads(cores, collectNewProteinsThreads, totalFileLength);
-
-		System.out.println(">Running DIAMOND on " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
-		List<Runnable> alignProteinsThreads = new ArrayList<>();
-		faaFilePointer = 0;
-		for (int i = 0; i < cores; i++)
-			alignProteinsThreads.add(new AlignProteinsThread(tmpFile, aliFolder, cores, memory, markerIdentity,
-					mappingDatabase, diamondBin));
-		rL.runThreads(1, alignProteinsThreads, totalFileLength);
-
-		System.out.println(">Clustering for marker db " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
-		List<Runnable> clusterProteinsForMarkerDbThread = new ArrayList<>();
-		faaFilePointer = 0;
-		for (int i = 0; i < cores; i++)
-			clusterProteinsForMarkerDbThread.add(new ClusterProteinsThread(tmpFile, markerClusterOutputFolder, null,
-					aliFolder, markerIdentity, mappingDatabase, ClusteringMode.MARKER_DB));
-		rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
-
 		try {
+
+			markerClusterOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins_clustered");
+			markerClusterOutputFolder.mkdir();
+			genusFolder = new File(srcPath + File.separator + rank + "_dbs");
+			genusFolder.mkdir();
+			faaFiles = new ArrayList<>(Arrays.asList(
+					proteinFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"))));
+			Collections.sort(faaFiles, Comparator.comparingLong(File::length).reversed());
+			long totalFileLength = 0L;
+			for (File f : faaFiles)
+				totalFileLength += f.length();
+			int n = faaFiles.size();
+
+			System.out.println(
+					">Assessing new proteins for " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
+			List<Runnable> collectNewProteinsThreads = new ArrayList<>();
+			faaFilePointer = 0;
+			for (int i = 0; i < cores; i++)
+				collectNewProteinsThreads.add(new CollectNewProteinsThread(tmpFile, aliFolder));
+			rL.runThreads(cores, collectNewProteinsThreads, totalFileLength);
+
+			System.out.println(">Running DIAMOND on " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
+			List<Runnable> alignProteinsThreads = new ArrayList<>();
+			faaFilePointer = 0;
+			for (int i = 0; i < cores; i++)
+				alignProteinsThreads.add(new AlignProteinsThread(tmpFile, aliFolder, cores, memory, markerIdentity,
+						mappingDatabase, diamondBin));
+			rL.runThreads(1, alignProteinsThreads, totalFileLength);
+
+			System.out.println(
+					">Clustering for marker db " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
+			List<Runnable> clusterProteinsForMarkerDbThread = new ArrayList<>();
+			faaFilePointer = 0;
+			for (int i = 0; i < cores; i++)
+				clusterProteinsForMarkerDbThread.add(new ClusterProteinsThread(tmpFile, markerClusterOutputFolder, null,
+						aliFolder, markerIdentity, mappingDatabase, ClusteringMode.MARKER_DB));
+			rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
+
 			if (rank.equals("genus")) {
-
-				genusDominationFile = new File(srcPath + File.separator + "acc2dominator.tab");
-				genusDominationFile.delete();
-
 				System.out.println(
 						">Clustering for genus db " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
+				genusDominationFile = new File(srcPath + File.separator + "acc2dominator.tab");
+				genusDominationFile.delete();
 				List<Runnable> clusterProteinsForGenusDbThread = new ArrayList<>();
-				BufferedWriter dominationWriter = new BufferedWriter(new FileWriter(genusDominationFile));
-				try {
+				try (BufferedWriter dominationWriter = new BufferedWriter(new FileWriter(genusDominationFile))) {
 					faaFilePointer = 0;
 					for (int i = 0; i < cores; i++)
 						clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(tmpFile, null, dominationWriter,
 								aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
 					rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
-				} finally {
-					dominationWriter.close();
 				}
-
 			}
+			
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -142,14 +139,14 @@ public class ClusterManager {
 					File newFile = new File(faaFile.getAbsolutePath().replaceAll("\\.faa", "_new.faa"));
 					newFile.delete();
 					newFile.createNewFile();
-					BufferedWriter writer = new BufferedWriter(new FileWriter(newFile));
-					List<FastaEntry> tokens = FastaReader.read(faaFile);
-					for (FastaEntry token : tokens) {
-						String acc = token.getName();
-						if (!alignmentDatabase.containsAcc(acc, genus + "_clusterTable"))
-							writer.write(">" + acc + "\n" + token.getSequence() + "\n");
+					try (BufferedWriter writer = new BufferedWriter(new FileWriter(newFile))) {
+						List<FastaEntry> tokens = FastaReader.read(faaFile);
+						for (FastaEntry token : tokens) {
+							String acc = token.getName();
+							if (!alignmentDatabase.containsAcc(acc, genus + "_clusterTable"))
+								writer.write(">" + acc + "\n" + token.getSequence() + "\n");
+						}
 					}
-					writer.close();
 					alignmentDatabase.close();
 				} catch (Exception e) {
 					e.printStackTrace();

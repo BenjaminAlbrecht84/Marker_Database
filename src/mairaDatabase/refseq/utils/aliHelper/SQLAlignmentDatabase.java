@@ -19,7 +19,8 @@ public class SQLAlignmentDatabase {
 	private Connection c;
 	private Statement stmt;
 
-	public SQLAlignmentDatabase(String databaseFolder, String genus, File tmpDir) throws ClassNotFoundException, SQLException {
+	public SQLAlignmentDatabase(String databaseFolder, String genus, File tmpDir)
+			throws ClassNotFoundException, SQLException {
 		this.databaseFile = databaseFolder + File.separator + genus + ".db";
 		Class.forName("org.sqlite.JDBC");
 		c = DriverManager.getConnection("jdbc:sqlite:" + this.databaseFile);
@@ -33,12 +34,8 @@ public class SQLAlignmentDatabase {
 				+ " (qacc TEXT, racc TEXT, qstart INTEGER, qend INTEGER, qlen INTEGER, sstart INTEGER, send INTEGER, slen INTEGER, pident DOUBLE, btop TEXT)");
 	}
 
-	public void close() {
-		try {
-			c.close();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
+	public void close() throws SQLException {
+		c.close();
 	}
 
 	public boolean containsAcc(String acc, String table) {
