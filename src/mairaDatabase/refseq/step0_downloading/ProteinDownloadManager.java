@@ -4,7 +4,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -120,13 +119,13 @@ public class ProteinDownloadManager {
 			File dir;
 			while ((dir = nextProteinDir()) != null) {
 
-				Map<String, Map<Integer, Set<String>>> seenAccessionMap = new HashMap<>();
+				Set<String> seenAccessionSet = new HashSet<>();
 				File out = new File(proteinFolder + "/" + dir.getName().replace("\\s+", "_") + ".faa");
 				if (out.exists()) {
 					ArrayList<FastaEntry> tokens = FastaReader.read(out);
 					for (FastaEntry e : tokens) {
 						if (!e.getSequence().isEmpty())
-							addSeenAccession(seenAccessionMap, e.getName());
+							addSeenAccession(seenAccessionSet, e.getName());
 					}
 				}
 
@@ -140,8 +139,8 @@ public class ProteinDownloadManager {
 								for (FastaEntry e : tokens) {
 									String acc = e.getName();
 									String seq = e.getSequence();
-									if (!isSeenAccession(seenAccessionMap, acc)) {
-										addSeenAccession(seenAccessionMap, acc);
+									if (!isSeenAccession(seenAccessionSet, acc)) {
+										addSeenAccession(seenAccessionSet, acc);
 										writer.write(">" + acc + "\n" + seq + "\n");
 									}
 								}
@@ -159,23 +158,12 @@ public class ProteinDownloadManager {
 			rL.countDown();
 		}
 
-		private void addSeenAccession(Map<String, Map<Integer, Set<String>>> seenAccessionMap, String acc) {
-			String prefix = acc.split("_")[0];
-			int id = Integer.parseInt(acc.split("_")[1].replaceAll("\\.", ""));
-			int bucket = id % 10;
-			seenAccessionMap.putIfAbsent(prefix, new HashMap<>());
-			seenAccessionMap.get(prefix).putIfAbsent(bucket, new HashSet<>());
-			seenAccessionMap.get(prefix).get(bucket).add(acc);
+		private void addSeenAccession(Set<String> seenAccessionSet, String acc) {
+			seenAccessionSet.add(acc);
 		}
 
-		private boolean isSeenAccession(Map<String, Map<Integer, Set<String>>> seenAccessionMap, String acc) {
-			String prefix = acc.split("_")[0];
-			int id = acc.contains("_") ? Integer.parseInt(acc.split("_")[1].replaceAll("\\.", "")) : 0;
-			int bucket = id % 10;
-			if (!seenAccessionMap.containsKey(prefix) || !seenAccessionMap.get(prefix).containsKey(bucket)
-					|| !seenAccessionMap.get(prefix).get(bucket).contains(acc))
-				return false;
-			return true;
+		private boolean isSeenAccession(Set<String> seenAccessionSet, String acc) {
+			return seenAccessionSet.contains(acc);
 		}
 
 	}
