@@ -62,6 +62,19 @@ public class SQLAlignmentDatabase {
 		}
 	}
 
+	public List<AlignmentInfo> getAllDistinctAlignments(String table) {
+		List<AlignmentInfo> alis = new ArrayList<>();
+		String sql = "SELECT DISTINCT * FROM " + table;
+		try {
+			ResultSet rs = stmt.executeQuery(sql);
+			while (rs.next())
+				alis.add(new AlignmentInfo(rs));
+		} catch (SQLException ex) {
+			Logger.getLogger(SQLMappingDatabase.class.getName()).log(Level.SEVERE, "Genus: " + table, ex);
+		}
+		return alis;
+	}
+
 	public List<AlignmentInfo> getAlignments(String acc, String table) {
 		List<AlignmentInfo> alis = new ArrayList<>();
 		String sql = "SELECT * FROM " + table + " WHERE qacc='" + acc + "'";
@@ -249,7 +262,7 @@ public class SQLAlignmentDatabase {
 						final int send = Integer.parseInt(tokens[6]);
 						final int slen = Integer.parseInt(tokens[7]);
 						final double pident = Double.parseDouble(tokens[8]);
-						final String btop = tokens[9];
+						final String btop = tokens.length < 10 || pident < 99 ? "" : tokens[9];
 						insertStmd.setString(1, qacc);
 						insertStmd.setString(2, racc);
 						insertStmd.setInt(3, qstart);

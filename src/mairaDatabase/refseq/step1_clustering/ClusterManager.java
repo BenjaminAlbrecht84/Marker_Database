@@ -42,7 +42,7 @@ public class ClusterManager {
 			genusFolder = new File(srcPath + File.separator + rank + "_dbs");
 			genusFolder.mkdir();
 			faaFiles = new ArrayList<>(Arrays.asList(
-					proteinFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa"))));
+					proteinFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa") && !name.endsWith("_old.faa"))));
 			Collections.sort(faaFiles, Comparator.comparingLong(File::length).reversed());
 			long totalFileLength = 0L;
 			for (File f : faaFiles)
@@ -137,15 +137,21 @@ public class ClusterManager {
 					String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("\\.faa", ""));
 					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
 					try {
+						File oldFile = new File(faaFile.getAbsolutePath().replaceAll("\\.faa", "_old.faa"));
+						oldFile.delete();
+						oldFile.createNewFile();
 						File newFile = new File(faaFile.getAbsolutePath().replaceAll("\\.faa", "_new.faa"));
 						newFile.delete();
 						newFile.createNewFile();
-						try (BufferedWriter writer = new BufferedWriter(new FileWriter(newFile))) {
+						try (BufferedWriter newWriter = new BufferedWriter(new FileWriter(newFile));
+								BufferedWriter oldWriter = new BufferedWriter(new FileWriter(newFile));) {
 							List<FastaEntry> tokens = FastaReader.read(faaFile);
 							for (FastaEntry token : tokens) {
 								String acc = token.getName();
 								if (!alignmentDatabase.containsAcc(acc, genus + "_clusterTable"))
-									writer.write(">" + acc + "\n" + token.getSequence() + "\n");
+									newWriter.write(">" + acc + "\n" + token.getSequence() + "\n");
+								else
+									oldWriter.write(">" + acc + "\n" + token.getSequence() + "\n");
 							}
 						}
 					} finally {
@@ -192,24 +198,27 @@ public class ClusterManager {
 					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
 					File newFile = new File(faaFile.getAbsolutePath().replaceAll("\\.faa", "_new.faa"));
 					newFile.createNewFile();
+					File oldFile = new File(faaFile.getAbsolutePath().replaceAll("\\.faa", "_old.faa"));
+					oldFile.createNewFile();
 					try {
 						if (newFile.exists() && newFile.length() > 0) {
-							File dbFile1 = DiamondRunner.makedb(faaFile, cores, diamondBin);
-							File tabFile1 = DiamondRunner.blastp(dbFile1, newFile, tmpFile, identity, memory, cores,
+							File db = DiamondRunner.makedb(faaFile, cores, diamondBin);
+							File tabFile1 = DiamondRunner.blastp(db, newFile, tmpFile, identity, memory, cores,
 									diamondBin);
 							alignmentDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile1, false);
-							dbFile1.delete();
+							db.delete();
 							tabFile1.delete();
 
-							File dbFile2 = DiamondRunner.makedb(newFile, cores, diamondBin);
-							File tabFile2 = DiamondRunner.blastp(dbFile2, faaFile, tmpFile, identity, memory, cores,
+							File dbNew = DiamondRunner.makedb(newFile, cores, diamondBin);
+							File tabFile2 = DiamondRunner.blastp(dbNew, oldFile, tmpFile, identity, memory, cores,
 									diamondBin);
 							alignmentDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile2, false);
-							dbFile2.delete();
+							dbNew.delete();
 							tabFile2.delete();
 						}
 					} finally {
 						newFile.delete();
+						oldFile.delete();
 						alignmentDatabase.close();
 					}
 				} catch (Exception e) {
@@ -262,8 +271,8 @@ public class ClusterManager {
 								: faaFile.getName();
 						File proteinOutFile = new File(outFolder + File.separator + fileName);
 						proteinOutFile.delete();
-						new Clustering().run(genus, alignmentDatabase, faaFile, proteinOutFile, dominationWriter, identity,
-								mode);
+						new Clustering().run(genus, alignmentDatabase, faaFile, proteinOutFile, dominationWriter,
+								identity, mode);
 					} finally {
 						alignmentDatabase.close();
 					}
