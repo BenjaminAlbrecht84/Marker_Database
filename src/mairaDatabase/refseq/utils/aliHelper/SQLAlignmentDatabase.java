@@ -62,17 +62,15 @@ public class SQLAlignmentDatabase {
 		}
 	}
 
-	public List<AlignmentInfo> getAllDistinctAlignments(String table) {
-		List<AlignmentInfo> alis = new ArrayList<>();
+	public ResultSet getAllDistinctAlignments(String table) {
 		String sql = "SELECT DISTINCT * FROM " + table;
 		try {
 			ResultSet rs = stmt.executeQuery(sql);
-			while (rs.next())
-				alis.add(new AlignmentInfo(rs));
+			return rs;
 		} catch (SQLException ex) {
 			Logger.getLogger(SQLMappingDatabase.class.getName()).log(Level.SEVERE, "Genus: " + table, ex);
 		}
-		return alis;
+		return null;
 	}
 
 	public List<AlignmentInfo> getAlignments(String acc, String table) {
@@ -284,6 +282,10 @@ public class SQLAlignmentDatabase {
 			e.printStackTrace();
 		}
 		return count;
+	}
+
+	public Statement getStmt() {
+		return stmt;
 	}
 
 }

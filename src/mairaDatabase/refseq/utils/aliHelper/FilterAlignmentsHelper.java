@@ -5,13 +5,14 @@ import java.io.File;
 import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase.AlignmentInfo;
 import mairaDatabase.utils.ResourceLoader;
 
 public class FilterAlignmentsHelper {
@@ -26,9 +27,13 @@ public class FilterAlignmentsHelper {
 
 		aliDatabaseFolder = new File(args[0]);
 		int cores = Integer.parseInt(args[1]);
+		String genera = args.length >= 3 ? args[2] : null;
 
 		dbFiles = Arrays
 				.asList(aliDatabaseFolder.listFiles((dir, name) -> name.endsWith(".db") && !name.endsWith("_tmp.db")));
+		if (genera != null)
+			dbFiles = dbFiles.stream().filter(f -> genera.contains(f.getName().split("\\.")[0]))
+					.collect(Collectors.toList());
 		Collections.sort(dbFiles, (f1, f2) -> Long.compare(f1.length(), f2.length()));
 
 		List<Runnable> threads = new ArrayList<>();
@@ -64,28 +69,34 @@ public class FilterAlignmentsHelper {
 							aliDatabaseFolder);
 					SQLAlignmentDatabase db2 = createDatabase(aliDatabaseFolder.getAbsolutePath(), genus + "_tmp",
 							aliDatabaseFolder);
-					List<AlignmentInfo> distinctAlignments = db1.getAllDistinctAlignments(genus + "_clusterTable");
+					db1.getStmt().setFetchSize(1000000);
+					ResultSet rs = db1.getAllDistinctAlignments(genus + "_clusterTable");
 					File aliTab = new File(
 							aliDatabaseFolder.getAbsolutePath() + File.separatorChar + genus + "_tmp.tab");
 					try {
 						try (BufferedWriter writer = new BufferedWriter(new FileWriter(aliTab))) {
-							for (AlignmentInfo ali : distinctAlignments) {
-								String line = ali.getQuery() + "\t" + ali.getRef() + "\t" + ali.getQueryStart() + "\t"
-										+ (ali.getQueryStart() + ali.getQueryLen()) + "\t" + ali.getQueryLen() + "\t"
-										+ ali.getSubjectStart() + "\t" + (ali.getSubjectStart() + ali.getSubjectLen())
-										+ "\t" + ali.getSubjectLen() + "\t" + ali.getIdentity() + "\t" + ali.getBtop() + "\n";
-								if (line.split("\t").length < 5)
-									System.out.println("ERROR: " + line);
+							while (rs.next()) {
+								String query = rs.getString(1);
+								String ref = rs.getString(2);
+								int qstart = rs.getInt(3);
+								int qend = rs.getInt(4);
+								int qlen = rs.getInt(5);
+								int sstart = rs.getInt(6);
+								int send = rs.getInt(7);
+								int slen = rs.getInt(8);
+								double identity = rs.getDouble(9);
+								String btop = rs.getString(10);
+								String line = query + "\t" + ref + "\t" + qstart + "\t" + qend + "\t" + qlen + "\t"
+										+ sstart + "\t" + send + "\t" + slen + "\t" + identity + "\t" + btop + "\n";
 								writer.write(line);
 							}
 						}
 						db2.addAlignmentTable(genus + "_clusterTable", null, aliTab, true);
-					} finally {
-						aliTab.delete();
 						Files.move(dbFile2.toPath(), dbFile2.toPath().resolveSibling(dbFile1.getName()),
 								StandardCopyOption.REPLACE_EXISTING);
+					} finally {
+						aliTab.delete();
 					}
-
 					rL.reportProgress(1);
 				} catch (Exception e) {
 					e.printStackTrace();

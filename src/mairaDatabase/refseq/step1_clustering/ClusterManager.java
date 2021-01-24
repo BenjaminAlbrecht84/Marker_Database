@@ -144,7 +144,7 @@ public class ClusterManager {
 						newFile.delete();
 						newFile.createNewFile();
 						try (BufferedWriter newWriter = new BufferedWriter(new FileWriter(newFile));
-								BufferedWriter oldWriter = new BufferedWriter(new FileWriter(newFile));) {
+								BufferedWriter oldWriter = new BufferedWriter(new FileWriter(oldFile));) {
 							List<FastaEntry> tokens = FastaReader.read(faaFile);
 							for (FastaEntry token : tokens) {
 								String acc = token.getName();
