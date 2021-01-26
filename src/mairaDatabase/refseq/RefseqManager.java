@@ -20,7 +20,7 @@ import mairaDatabase.utils.taxTree.TaxTree;
 public class RefseqManager {
 
 	public final static int CLUSTER_MARKER_ID = 90, CLUSTER_GENUS_ID = 99, MARKER_ID = 80;
-	public final static int MAX_PROTEINS_PER_GCF = 100;
+	public final static int[] MAX_PROTEINS_PER_GCF = { 25, 50, 75, 100 };
 	public final static int MIN_LENGTH = 100;
 
 	public void run(File src, File tmp, String aliDir, int cores, int memory, String[] genera, String diamondBin) {
@@ -48,13 +48,13 @@ public class RefseqManager {
 				mappingDatabase, cores, memory, MARKER_ID, tmp, diamondBin);
 		FilterManager filterManager = new FilterManager();
 		filterManager.run(rank, srcPath, aliDir, tmpDir, markerManager.getMarkerOutputFolder(), taxTree,
-				mappingDatabase, MAX_PROTEINS_PER_GCF, CLUSTER_MARKER_ID, cores);
+					mappingDatabase, MAX_PROTEINS_PER_GCF, CLUSTER_MARKER_ID, cores);
 
 		File mairaDb = new File(srcPath + File.separator + "maira.db");
 		mairaDb.delete();
 		SQLMairaDatabase mairaDatabase = new SQLMairaDatabase(mairaDb.getAbsolutePath(), tmpDir);
 		mairaDatabase.createAcc2taxidTable(proteinDownloadManager.getMappingFile());
-		mairaDatabase.createFactorsTable(filterManager.getWeightFile(), MAX_PROTEINS_PER_GCF);
+		mairaDatabase.createFactorsTable(filterManager.getWeightFiles());
 		mairaDatabase.createProtCountsTable(proteinDownloadManager.getProteinCountsFile());
 		mairaDatabase.createAcc2DominatorsTable(clusterManager.getGenusDominationFile());
 
@@ -63,7 +63,7 @@ public class RefseqManager {
 
 		Cleaner.apply(srcFolder, database);
 		long runtime = (System.currentTimeMillis() - time) / 1000;
-		System.out.println("Total runtime: " +  LocalTime.ofSecondOfDay(runtime).toString());
+		System.out.println("Total runtime: " + LocalTime.ofSecondOfDay(runtime).toString());
 
 	}
 

@@ -8,6 +8,8 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -123,45 +125,52 @@ public class SQLMairaDatabase {
 		}
 	}
 
-	public void createFactorsTable(File weightFile, int MAX_PROTEINS_PER_GCF) {
+	public void createFactorsTable(Map<Integer, File> weightFiles) {
 		try {
 
-			String table = "factors_" + MAX_PROTEINS_PER_GCF;
-			String index = "factors_" + MAX_PROTEINS_PER_GCF + "_index";
+			for (Entry<Integer, File> e : weightFiles.entrySet()) {
+				
+				int n = e.getKey();
+				File weightFile = e.getValue();
 
-			System.out.println(">Creating SQL Table " + table);
-			rL.setTime();
-			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, factor REAL)");
-			stmt.execute("DELETE FROM " + table);
-			c.setAutoCommit(false);
-			int count = 0;
-			rL.setMaxProgress(weightFile.length());
-			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?);");
-					BufferedReader buf = new BufferedReader(new FileReader(weightFile));) {
-				String line;
-				while ((line = buf.readLine()) != null) {
-					final String[] tokens = line.split("\t");
-					final String accession = tokens[0];
-					final double weight = Double.parseDouble(tokens[1]);
-					insertStmd.setString(1, accession);
-					insertStmd.setDouble(2, weight);
-					insertStmd.execute();
-					count++;
-					rL.reportProgress(line.length() + 1);
+				String table = "factors_" + n;
+				String index = "factors_" + n + "_index";
+
+				System.out.println(">Creating SQL Table " + table);
+				rL.setTime();
+				stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, factor REAL)");
+				stmt.execute("DELETE FROM " + table);
+				c.setAutoCommit(false);
+				int count = 0;
+				rL.setMaxProgress(weightFile.length());
+				try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?);");
+						BufferedReader buf = new BufferedReader(new FileReader(weightFile));) {
+					String line;
+					while ((line = buf.readLine()) != null) {
+						final String[] tokens = line.split("\t");
+						final String accession = tokens[0];
+						final double weight = Double.parseDouble(tokens[1]);
+						insertStmd.setString(1, accession);
+						insertStmd.setDouble(2, weight);
+						insertStmd.execute();
+						count++;
+						rL.reportProgress(line.length() + 1);
+					}
 				}
-			}
-			c.commit();
-			c.setAutoCommit(true);
-			System.out.println(String.format("Table " + table + ": added %,d items", count));
-			rL.reportFinish();
-			rL.reportRuntime();
+				c.commit();
+				c.setAutoCommit(true);
+				System.out.println(String.format("Table " + table + ": added %,d items", count));
+				rL.reportFinish();
+				rL.reportRuntime();
 
-			System.out.println(">Indexing SQL Table " + table);
-			rL.setTime();
-			stmt.execute("DROP INDEX IF EXISTS " + index);
-			stmt.execute("CREATE INDEX " + index + " ON " + table + " (acc)");
-			rL.reportFinish();
-			rL.reportRuntime();
+				System.out.println(">Indexing SQL Table " + table);
+				rL.setTime();
+				stmt.execute("DROP INDEX IF EXISTS " + index);
+				stmt.execute("CREATE INDEX " + index + " ON " + table + " (acc)");
+				rL.reportFinish();
+				rL.reportRuntime();
+
+			}
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -176,12 +185,14 @@ public class SQLMairaDatabase {
 
 			System.out.println(">Creating SQL Table " + table);
 			rL.setTime();
-			stmt.execute("CREATE TABLE IF NOT EXISTS " + table + " (acc TEXT, dominator TEXT, btop TEXT, qstart INTEGER, sstart INTEGER, slen INTEGER)");
+			stmt.execute("CREATE TABLE IF NOT EXISTS " + table
+					+ " (acc TEXT, dominator TEXT, btop TEXT, qstart INTEGER, sstart INTEGER, slen INTEGER)");
 			stmt.execute("DELETE FROM " + table);
 			c.setAutoCommit(false);
 			int count = 0;
 			rL.setMaxProgress(genusDominationFile.length());
-			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?, ?, ?, ?)");
+			try (PreparedStatement insertStmd = c
+					.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?, ?, ?, ?)");
 					BufferedReader buf = new BufferedReader(new FileReader(genusDominationFile));) {
 				String line;
 				while ((line = buf.readLine()) != null) {
