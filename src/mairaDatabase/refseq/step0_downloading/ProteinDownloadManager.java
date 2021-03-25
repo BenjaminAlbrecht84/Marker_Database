@@ -216,8 +216,8 @@ public class ProteinDownloadManager {
 
 					for (Pair<String, String> ftpLink : ftpLinks) {
 						
-						String ftp = ftpLink.get1();
-						String genus = ftpLink.get2();
+						String ftp = ftpLink.getFirst();
+						String genus = ftpLink.getSecond();
 
 						boolean isReadable = false;
 						while (!isReadable) {
