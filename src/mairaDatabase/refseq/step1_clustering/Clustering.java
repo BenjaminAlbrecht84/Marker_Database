@@ -8,6 +8,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import jloda.util.Pair;
 import mairaDatabase.refseq.RefseqManager;
@@ -15,7 +18,10 @@ import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase.AlignmentInfo;
 import mairaDatabase.utils.FastaReader;
 import mairaDatabase.utils.FastaReader.FastaEntry;
+import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.SparseString;
+import mairaDatabase.utils.taxTree.TaxNode;
+import mairaDatabase.utils.taxTree.TaxTree;
 
 public class Clustering {
 
@@ -26,15 +32,19 @@ public class Clustering {
 	private int ID_THRESHOLD, COV_THRESHOLD;
 	private final static int MIN_PROTEINS_CLUSTER = 1000;
 
-	public void run(String genus, SQLAlignmentDatabase alignmentDatabase, File faaFile, File proteinOutFile,
-			BufferedWriter dominationWriter, int MIN_ID, ClusteringMode mode) throws Exception {
-
+	public void run(String genus, SQLAlignmentDatabase alignmentDatabase, SQLMappingDatabase mappingDatabase,
+			TaxTree taxTree, File faaFile, File proteinOutFile, BufferedWriter dominationWriter, int MIN_ID,
+			ClusteringMode mode) throws Exception {
+		
+		long time = System.currentTimeMillis();
 		String table = genus + "_clusterTable";
 		COV_THRESHOLD = MIN_ID;
 		ID_THRESHOLD = MIN_ID;
 		List<FastaEntry> genusProteins = FastaReader.read(faaFile);
-		long time = System.currentTimeMillis();
-
+		
+		if (mode == ClusteringMode.MARKER_DB)
+			genusProteins = genusProteins.stream().filter(e -> hasUniqueGenus(e.getName(), mappingDatabase, taxTree))
+					.collect(Collectors.toList());
 		List<ClusterNode> clusterNodes = new ArrayList<>(genusProteins.size());
 		for (FastaEntry protein : genusProteins) {
 			SparseString acc = new SparseString(protein.getName());
@@ -91,6 +101,15 @@ public class Clustering {
 		long runtime = (System.currentTimeMillis() - time) / 1000;
 		System.err.println(genus + ": " + written + " proteins reported (" + runtime + "s)");
 
+	}
+
+	private boolean hasUniqueGenus(String acc, SQLMappingDatabase mappingDatabase, TaxTree taxTree) {
+		List<Integer> taxids = mappingDatabase.getTaxIdByAcc(acc);
+		Set<TaxNode> nodes = taxids.stream().map(id -> taxTree.getNode(id)).filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Set<String> genera = nodes.stream().map(v -> v.getAncestorAtRank("genus")).filter(Objects::nonNull)
+				.map(v -> v.getName()).collect(Collectors.toSet());
+		return genera.size() == 1;
 	}
 
 	public class ClusterNode implements Comparable<ClusterNode> {

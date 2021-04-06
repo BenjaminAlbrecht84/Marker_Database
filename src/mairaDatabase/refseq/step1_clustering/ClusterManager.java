@@ -41,8 +41,8 @@ public class ClusterManager {
 			markerClusterOutputFolder.mkdir();
 			genusFolder = new File(srcPath + File.separator + rank + "_dbs");
 			genusFolder.mkdir();
-			faaFiles = new ArrayList<>(Arrays.asList(
-					proteinFolder.listFiles((dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa") && !name.endsWith("_old.faa"))));
+			faaFiles = new ArrayList<>(Arrays.asList(proteinFolder.listFiles(
+					(dir, name) -> name.endsWith(".faa") && !name.endsWith("_new.faa") && !name.endsWith("_old.faa"))));
 			Collections.sort(faaFiles, Comparator.comparingLong(File::length).reversed());
 			long totalFileLength = 0L;
 			for (File f : faaFiles)
@@ -71,7 +71,7 @@ public class ClusterManager {
 			faaFilePointer = 0;
 			for (int i = 0; i < cores; i++)
 				clusterProteinsForMarkerDbThread.add(new ClusterProteinsThread(tmpFile, markerClusterOutputFolder, null,
-						aliFolder, markerIdentity, mappingDatabase, ClusteringMode.MARKER_DB));
+						aliFolder, markerIdentity, mappingDatabase, taxTree, ClusteringMode.MARKER_DB));
 			rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
 
 			if (rank.equals("genus")) {
@@ -84,7 +84,7 @@ public class ClusterManager {
 					faaFilePointer = 0;
 					for (int i = 0; i < cores; i++)
 						clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(tmpFile, null, dominationWriter,
-								aliFolder, genusIdentity, mappingDatabase, ClusteringMode.GENUS_DB));
+								aliFolder, genusIdentity, mappingDatabase, taxTree, ClusteringMode.GENUS_DB));
 					rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
 				}
 			}
@@ -241,15 +241,17 @@ public class ClusterManager {
 		private int identity;
 		private SQLMappingDatabase mappingDatabase;
 		private ClusteringMode mode;
+		private TaxTree taxTree;
 
 		public ClusterProteinsThread(File tmpFile, File outFolder, BufferedWriter dominationWriter, String aliFolder,
-				int identity, SQLMappingDatabase mappingDatabase, ClusteringMode mode) {
+				int identity, SQLMappingDatabase mappingDatabase, TaxTree taxTree, ClusteringMode mode) {
 			this.outFolder = outFolder != null ? outFolder.getAbsolutePath() : null;
 			this.tmpFile = tmpFile;
 			this.dominationWriter = dominationWriter;
 			this.identity = identity;
 			this.aliFolder = aliFolder;
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
+			this.taxTree = taxTree;
 			this.mode = mode;
 		}
 
@@ -271,8 +273,8 @@ public class ClusterManager {
 								: faaFile.getName();
 						File proteinOutFile = new File(outFolder + File.separator + fileName);
 						proteinOutFile.delete();
-						new Clustering().run(genus, alignmentDatabase, faaFile, proteinOutFile, dominationWriter,
-								identity, mode);
+						new Clustering().run(genus, alignmentDatabase, mappingDatabase, taxTree, faaFile, proteinOutFile,
+								dominationWriter, identity, mode);
 					} finally {
 						alignmentDatabase.close();
 					}
