@@ -35,13 +35,13 @@ public class Clustering {
 	public void run(String genus, SQLAlignmentDatabase alignmentDatabase, SQLMappingDatabase mappingDatabase,
 			TaxTree taxTree, File faaFile, File proteinOutFile, BufferedWriter dominationWriter, int MIN_ID,
 			ClusteringMode mode) throws Exception {
-		
+
 		long time = System.currentTimeMillis();
 		String table = genus + "_clusterTable";
 		COV_THRESHOLD = MIN_ID;
 		ID_THRESHOLD = MIN_ID;
 		List<FastaEntry> genusProteins = FastaReader.read(faaFile);
-		
+
 		if (mode == ClusteringMode.MARKER_DB)
 			genusProteins = genusProteins.stream().filter(e -> hasUniqueGenus(e.getName(), mappingDatabase, taxTree))
 					.collect(Collectors.toList());
@@ -62,7 +62,7 @@ public class Clustering {
 				for (AlignmentInfo ali : alis) {
 					double qLen = ali.getQueryLen(), slen = ali.getSubjectLen();
 					ClusterNode w = acc2node.get(ali.getRef());
-					if (w == null || qLen < RefseqManager.MIN_LENGTH || slen < RefseqManager.MIN_LENGTH)
+					if (w == null)
 						continue;
 					if (w.isDominated())
 						continue;
@@ -85,8 +85,10 @@ public class Clustering {
 				String seq = protein.getSequence();
 				ClusterNode v = acc2node.get(acc);
 				if (!v.isDominated()) {
-					proteinsWriter.write(">" + acc + "\n" + seq + "\n");
-					written++;
+					if (seq.length() > RefseqManager.MIN_LENGTH) {
+						proteinsWriter.write(">" + acc + "\n" + seq + "\n");
+						written++;
+					}
 				} else if (mode == ClusteringMode.GENUS_DB) {
 					Pair<ClusterNode, AlignmentInfo> pair = v.getDominatedBy();
 					ClusterNode dominator = pair.getFirst();

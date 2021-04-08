@@ -20,7 +20,7 @@ import mairaDatabase.utils.taxTree.TaxTree;
 public class RefseqManager {
 
 	public final static int CLUSTER_MARKER_ID = 90, CLUSTER_GENUS_ID = 99, MARKER_ID = 80;
-	public final static int[] MAX_PROTEINS_PER_GCF = { 25, 50, 75, 100 };
+	public final static int[] MAX_PROTEINS_PER_GCF = { 25, 50, 75, 100, 500, 1000 };
 	public final static int MIN_LENGTH = 100;
 
 	public void run(File src, File tmp, String aliDir, int cores, int memory, String[] genera, String diamondBin) {
