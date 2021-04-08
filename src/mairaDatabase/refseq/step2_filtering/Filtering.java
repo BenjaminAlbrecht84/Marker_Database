@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import mairaDatabase.refseq.RefseqManager;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
@@ -32,9 +33,10 @@ public class Filtering {
 		this.alignmentDatabase = alignmentDatabase;
 		long time = System.currentTimeMillis();
 
-		ArrayList<FastaEntry> markerProteins = FastaReader.read(faaFile);
-		ArrayList<MarkerNode> markerNodes = new ArrayList<>(markerProteins.size());
-		HashMap<String, MarkerNode> acc2node = new HashMap<>(markerProteins.size());
+		List<FastaEntry> markerProteins = FastaReader.read(faaFile).stream()
+				.filter(p -> p.getSequenceLength() > RefseqManager.MIN_LENGTH).collect(Collectors.toList());
+		List<MarkerNode> markerNodes = new ArrayList<>(markerProteins.size());
+		Map<String, MarkerNode> acc2node = new HashMap<>(markerProteins.size());
 		for (FastaEntry protein : markerProteins) {
 			SparseString acc = protein.getSparseName();
 			int count = alignmentDatabase.getAlignmentCount(acc.toString(), table);
@@ -45,7 +47,7 @@ public class Filtering {
 		Collections.sort(markerNodes);
 
 		int selectedNodes = markerNodes.size();
-		HashMap<String, Integer> gcf2Counts = new HashMap<>();
+		Map<String, Integer> gcf2Counts = new HashMap<>();
 		try {
 			for (MarkerNode v : markerNodes) {
 				Map<String, Integer> localCounts = new HashMap<>();
@@ -88,7 +90,7 @@ public class Filtering {
 					gcfFactors.add(1. / (double) gcf2Counts.get(gcf));
 				double mean = Statistics.getMean(gcfFactors);
 				try {
-					factorWriter.write(v.getAcc() + "\t" + mean+ "\n");
+					factorWriter.write(v.getAcc() + "\t" + mean + "\n");
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -101,13 +103,12 @@ public class Filtering {
 
 	}
 
-	private Set<String> getCoveredGenomes(MarkerNode v, HashMap<String, MarkerNode> acc2node) {
+	private Set<String> getCoveredGenomes(MarkerNode v, Map<String, MarkerNode> acc2node) {
 		List<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
 		Set<String> coveredGenomes = new HashSet<>();
 		for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
-			double qLen = ali.getQueryLen(), slen = ali.getSubjectLen();
 			MarkerNode w = acc2node.get(ali.getRef());
-			if (w == null || qLen < RefseqManager.MIN_LENGTH || slen < RefseqManager.MIN_LENGTH)
+			if (w == null)
 				continue;
 			if (ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD) {
 				for (String gcf : mappingDatabase.getGCFByAcc(ali.getRef()))

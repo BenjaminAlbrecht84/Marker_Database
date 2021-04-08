@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import jloda.util.Pair;
-import mairaDatabase.refseq.RefseqManager;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase.AlignmentInfo;
 import mairaDatabase.utils.FastaReader;
@@ -62,9 +61,7 @@ public class Clustering {
 				for (AlignmentInfo ali : alis) {
 					double qLen = ali.getQueryLen(), slen = ali.getSubjectLen();
 					ClusterNode w = acc2node.get(ali.getRef());
-					if (w == null)
-						continue;
-					if (w.isDominated())
+					if (w == null || w.isDominated())
 						continue;
 					boolean isSelfHit = ali.getQuery().equals(ali.getRef());
 					if (!isSelfHit && ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD) {
@@ -85,10 +82,8 @@ public class Clustering {
 				String seq = protein.getSequence();
 				ClusterNode v = acc2node.get(acc);
 				if (!v.isDominated()) {
-					if (seq.length() > RefseqManager.MIN_LENGTH) {
-						proteinsWriter.write(">" + acc + "\n" + seq + "\n");
-						written++;
-					}
+					proteinsWriter.write(">" + acc + "\n" + seq + "\n");
+					written++;
 				} else if (mode == ClusteringMode.GENUS_DB) {
 					Pair<ClusterNode, AlignmentInfo> pair = v.getDominatedBy();
 					ClusterNode dominator = pair.getFirst();
