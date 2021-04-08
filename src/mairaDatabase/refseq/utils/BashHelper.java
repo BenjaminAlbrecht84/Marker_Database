@@ -65,14 +65,14 @@ public class BashHelper {
 
 						String diamondDb = replaceSuffix(f, "dmnd");
 						diamondWriter
-								.write("$exe makedb --in " + f.getAbsolutePath() + " -d " + diamondDb + " -p $cpus\n");
+								.write("$exe makedb --in \"" + f.getAbsolutePath() + "\" -d \"" + diamondDb + "\" -p $cpus\n");
 
 						String lastdDb = removeSuffix(f) + "_last_db";
-						lastWriter.write("mkdir " + lastdDb + "\n");
-						lastWriter.write("$exe -P $cpus -s $size -p " + lastdDb + "/last_db " + f.getAbsolutePath() + "\n");
+						lastWriter.write("mkdir \"" + lastdDb + "\"\n");
+						lastWriter.write("$exe -P $cpus -s $size -p \"" + lastdDb + "/last_db\" \"" + f.getAbsolutePath() + "\"\n");
 
 						String ellaDb = replaceSuffix(f, "ella");
-						ellaWriter.write("$exe makedb -i " + f.getAbsolutePath() + " -d " + ellaDb + " -p $cpus\n");
+						ellaWriter.write("$exe makedb -i \"" + f.getAbsolutePath() + "\" -d \"" + ellaDb + "\" -p $cpus\n");
 
 					}
 
