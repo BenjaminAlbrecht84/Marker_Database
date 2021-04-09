@@ -6,6 +6,7 @@ import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.List;
 
+import mairaDatabase.refseq.RefseqManager;
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
 import mairaDatabase.utils.FastaReader;
@@ -37,20 +38,23 @@ public class Selecting {
 					String acc = protein.getName();
 					List<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(acc, table);
 					boolean selectProtein = true;
-					if (selectedNodes > MIN_PROTEINS_SELECT) {
+					if (protein.getSequenceLength() < RefseqManager.MIN_LENGTH)
+						selectProtein = false;
+					else if (selectedNodes > MIN_PROTEINS_SELECT) {
 						for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
 							String refGenus = getRank(mappingDatabase.getTaxIdByAcc(ali.getRef()), "genus");
 							if (refGenus != null && !refGenus.equals(genus) && ali.getIdentity() > ID_THRESHOLD
 									&& (ali.getQueryCoverage() > COV_THRESHOLD
 											|| ali.getRefCoverage() > COV_THRESHOLD)) {
 								selectProtein = false;
-								selectedNodes--;
 								break;
 							}
 						}
 					}
 					if (selectProtein)
 						writer.write(">" + acc + "\n" + protein.getSequence() + "\n");
+					else
+						selectedNodes--;
 				}
 			}
 		} catch (Exception e) {
