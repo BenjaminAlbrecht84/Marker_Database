@@ -27,7 +27,7 @@ public class Selecting {
 		this.ID_THRESHOLD = MIN_ID;
 		this.taxTree = taxTree;
 		String table = genus + "_markerTable";
-		ArrayList<FastaEntry> clusteringProteins = FastaReader.read(faaFile);
+		List<FastaEntry> clusteringProteins = FastaReader.read(faaFile);
 		long time = System.currentTimeMillis();
 
 		int selectedNodes = clusteringProteins.size();

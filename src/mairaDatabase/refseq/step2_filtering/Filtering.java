@@ -88,9 +88,9 @@ public class Filtering {
 				List<Double> gcfFactors = new ArrayList<>();
 				for (String gcf : getCoveredGenomes(v, acc2node))
 					gcfFactors.add(1. / (double) gcf2Counts.get(gcf));
-				double mean = Statistics.getMean(gcfFactors);
+				double median = Statistics.getMedian(gcfFactors);
 				try {
-					factorWriter.write(v.getAcc() + "\t" + mean + "\n");
+					factorWriter.write(v.getAcc() + "\t" + median + "\n");
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
