@@ -106,9 +106,6 @@ public class Filtering {
 		List<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
 		Set<String> coveredGenomes = new HashSet<>();
 		for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
-			MarkerNode w = acc2node.get(ali.getRef());
-			if (w == null)
-				continue;
 			if (ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD) {
 				for (String gcf : mappingDatabase.getGCFByAcc(ali.getRef()))
 					coveredGenomes.add(gcf);

@@ -3,7 +3,6 @@ package mairaDatabase.refseq.step1_clustering;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.util.ArrayList;
 import java.util.List;
 
 import mairaDatabase.refseq.RefseqManager;

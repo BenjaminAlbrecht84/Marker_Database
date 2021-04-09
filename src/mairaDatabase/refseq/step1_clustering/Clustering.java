@@ -104,6 +104,8 @@ public class Clustering {
 		List<Integer> taxids = mappingDatabase.getTaxIdByAcc(acc);
 		Set<TaxNode> nodes = taxids.stream().map(id -> taxTree.getNode(id)).filter(Objects::nonNull)
 				.collect(Collectors.toSet());
+		if (nodes.stream().anyMatch(v -> v.getAncestorAtRank("genus") == null))
+			return false;
 		Set<String> genera = nodes.stream().map(v -> v.getAncestorAtRank("genus")).filter(Objects::nonNull)
 				.map(v -> v.getName()).collect(Collectors.toSet());
 		return genera.size() == 1;
