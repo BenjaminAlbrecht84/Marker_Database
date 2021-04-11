@@ -13,6 +13,7 @@ import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.SparseString;
 import mairaDatabase.utils.Statistics;
 import mairaDatabase.utils.FastaReader.FastaEntry;
+import mairaDatabase.utils.taxTree.TaxNode;
 import mairaDatabase.utils.taxTree.TaxTree;
 
 public class Filtering {
@@ -34,7 +35,7 @@ public class Filtering {
 		long time = System.currentTimeMillis();
 
 		List<FastaEntry> markerProteins = FastaReader.read(faaFile).stream()
-				.filter(p -> p.getSequenceLength() > RefseqManager.MIN_LENGTH).collect(Collectors.toList());
+				.filter(p -> p.getSequenceLength() > RefseqManager.MIN_LENGTH && hasUniqueGenus(p.getName(), mappingDatabase, taxTree)).collect(Collectors.toList());
 		List<MarkerNode> markerNodes = new ArrayList<>(markerProteins.size());
 		Map<String, MarkerNode> acc2node = new HashMap<>(markerProteins.size());
 		for (FastaEntry protein : markerProteins) {
@@ -100,6 +101,17 @@ public class Filtering {
 		System.err.println(genus + ": " + selectedNodes + "/" + markerProteins.size() + " marker proteins selected ("
 				+ runtime + "s)");
 
+	}
+	
+	private boolean hasUniqueGenus(String acc, SQLMappingDatabase mappingDatabase, TaxTree taxTree) {
+		List<Integer> taxids = mappingDatabase.getTaxIdByAcc(acc);
+		Set<TaxNode> nodes = taxids.stream().map(id -> taxTree.getNode(id)).filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		if (nodes.stream().anyMatch(v -> v.getAncestorAtRank("genus") == null))
+			return false;
+		Set<String> genera = nodes.stream().map(v -> v.getAncestorAtRank("genus")).filter(Objects::nonNull)
+				.map(v -> v.getName()).collect(Collectors.toSet());
+		return genera.size() == 1;
 	}
 
 	private Set<String> getCoveredGenomes(MarkerNode v, Map<String, MarkerNode> acc2node) {

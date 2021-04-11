@@ -8,9 +8,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import jloda.util.Pair;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
@@ -19,7 +16,6 @@ import mairaDatabase.utils.FastaReader;
 import mairaDatabase.utils.FastaReader.FastaEntry;
 import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.SparseString;
-import mairaDatabase.utils.taxTree.TaxNode;
 import mairaDatabase.utils.taxTree.TaxTree;
 
 public class Clustering {
@@ -41,9 +37,6 @@ public class Clustering {
 		ID_THRESHOLD = MIN_ID;
 		List<FastaEntry> genusProteins = FastaReader.read(faaFile);
 
-		if (mode == ClusteringMode.MARKER_DB)
-			genusProteins = genusProteins.stream().filter(e -> hasUniqueGenus(e.getName(), mappingDatabase, taxTree))
-					.collect(Collectors.toList());
 		List<ClusterNode> clusterNodes = new ArrayList<>(genusProteins.size());
 		for (FastaEntry protein : genusProteins) {
 			SparseString acc = new SparseString(protein.getName());
@@ -59,7 +52,6 @@ public class Clustering {
 			if (!v.isDominated()) {
 				List<AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
 				for (AlignmentInfo ali : alis) {
-					double qLen = ali.getQueryLen(), slen = ali.getSubjectLen();
 					ClusterNode w = acc2node.get(ali.getRef());
 					if (w == null || w.isDominated())
 						continue;
@@ -98,17 +90,6 @@ public class Clustering {
 		long runtime = (System.currentTimeMillis() - time) / 1000;
 		System.err.println(genus + ": " + written + " proteins reported (" + runtime + "s)");
 
-	}
-
-	private boolean hasUniqueGenus(String acc, SQLMappingDatabase mappingDatabase, TaxTree taxTree) {
-		List<Integer> taxids = mappingDatabase.getTaxIdByAcc(acc);
-		Set<TaxNode> nodes = taxids.stream().map(id -> taxTree.getNode(id)).filter(Objects::nonNull)
-				.collect(Collectors.toSet());
-		if (nodes.stream().anyMatch(v -> v.getAncestorAtRank("genus") == null))
-			return false;
-		Set<String> genera = nodes.stream().map(v -> v.getAncestorAtRank("genus")).filter(Objects::nonNull)
-				.map(v -> v.getName()).collect(Collectors.toSet());
-		return genera.size() == 1;
 	}
 
 	public class ClusterNode implements Comparable<ClusterNode> {
