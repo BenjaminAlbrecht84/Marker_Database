@@ -68,7 +68,7 @@ public class MarkerManager {
 			newProteins.createNewFile();
 			newProteins.deleteOnExit();
 			for (File f : markerOutputFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
-				appendToFile(newProteins, f);
+				appendToFile(f, newProteins);
 			File tabFile1 = DiamondRunner.blastp(clusterDb, newProteins, tmpFile, identity, memory, cores, diamondBin);
 			newProteins.delete();
 			clusterDb.delete();
@@ -88,7 +88,7 @@ public class MarkerManager {
 			allProteins.createNewFile();
 			allProteins.deleteOnExit();
 			for (File f : faaFiles)
-				appendToFile(allProteins, f);
+				appendToFile(f, allProteins);
 			File tabFile2 = DiamondRunner.blastp(newClusterDb, allProteins, tmpFile, identity, memory, cores,
 					diamondBin);
 			allProteins.delete();
@@ -317,14 +317,10 @@ public class MarkerManager {
 		return new SQLAlignmentDatabase(aliFolder, genus, tmpFile);
 	}
 
-	private void appendToFile(File source, File target) {
-		try {
-			BufferedWriter writer = new BufferedWriter(new FileWriter(target, true));
+	private void appendToFile(File source, File target) throws IOException {
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(target, true))) {
 			for (FastaEntry token : FastaReader.read(source))
 				writer.write(">" + token.getName() + "\n" + token.getSequence() + "\n");
-			writer.close();
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
 	}
 

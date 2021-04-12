@@ -61,7 +61,7 @@ public class FilterManager {
 
 				System.out.println(">Filtering marker proteins");
 				try {
-					faaFiles = new ArrayList<>(Arrays.asList(markerDir.listFiles()));
+					faaFiles = new ArrayList<>(Arrays.asList(markerDir.listFiles((dir, name) -> name.endsWith(".faa"))));
 					List<Runnable> threads = new ArrayList<>();
 					faaFilePointer = 0;
 					for (int i = 0; i < cores; i++)
