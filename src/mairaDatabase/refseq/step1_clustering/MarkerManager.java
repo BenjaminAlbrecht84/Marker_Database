@@ -1,9 +1,7 @@
 package mairaDatabase.refseq.step1_clustering;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -11,7 +9,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import mairaDatabase.refseq.utils.DiamondRunner;
 import mairaDatabase.refseq.utils.Formatter;
@@ -21,7 +21,6 @@ import mairaDatabase.utils.FastaReader.FastaEntry;
 import mairaDatabase.utils.FileUtils;
 import mairaDatabase.utils.ResourceLoader;
 import mairaDatabase.utils.SQLMappingDatabase;
-import mairaDatabase.utils.taxTree.TaxNode;
 import mairaDatabase.utils.taxTree.TaxTree;
 
 public class MarkerManager {
@@ -30,12 +29,15 @@ public class MarkerManager {
 	private File markerOutputFolder;
 	private List<File> faaFiles;
 	private int faaFilePointer = 0;
+	private Set<String> oldAccessions = new HashSet<>();
+	private Set<String> newAccessions = new HashSet<>();
 
 	public void runMarker(String rank, String srcPath, String aliFolder, File markerClusterFolder, TaxTree taxTree,
 			SQLMappingDatabase mappingDatabase, int cores, int memory, int identity, File tmpFile, String diamondBin) {
 
 		try {
 
+			SQLAlignmentDatabase genusAliDatabase = createAlignmentDatabase(aliFolder, "Genus", tmpFile);
 			markerOutputFolder = new File(srcPath + File.separator + rank + "_marker_proteins");
 			markerOutputFolder.mkdir();
 			faaFiles = new ArrayList<>(Arrays.asList(
@@ -54,55 +56,51 @@ public class MarkerManager {
 						.add(new CollectNewProteinsThread(tmpFile, markerOutputFolder.getAbsolutePath(), aliFolder));
 			rL.runThreads(cores, collectNewProteinsThreads, totalFileLength);
 
-			System.out.println(">Aligning new vs all proteins using DIAMOND");
-			rL.setTime();
-			File clusteredProteins = new File(markerOutputFolder + File.separator + "cluster.faa");
-			clusteredProteins.createNewFile();
-			clusteredProteins.deleteOnExit();
-			for (File f : markerClusterFolder.listFiles((dir, name) -> name.endsWith("_clustered.faa")))
-				appendToFile(f, clusteredProteins);
-			File clusterDb = DiamondRunner.makedb(clusteredProteins, cores, diamondBin);
-			clusteredProteins.delete();
-			clusterDb.deleteOnExit();
+			System.out.println(">Collecting old proteins");
+			File oldProteins = new File(markerOutputFolder + File.separator + "oldProteins.faa");
+			oldProteins.createNewFile();
+			oldProteins.deleteOnExit();
+			for (File f : markerClusterFolder.listFiles((dir, name) -> name.endsWith("_old.faa")))
+				appendToFile(f, oldProteins, oldAccessions);
+			oldAccessions = null;
+
+			System.out.println(">Collecting new proteins");
 			File newProteins = new File(markerOutputFolder + File.separator + "newProteins.faa");
 			newProteins.createNewFile();
 			newProteins.deleteOnExit();
 			for (File f : markerOutputFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
-				appendToFile(f, newProteins);
-			File tabFile1 = DiamondRunner.blastp(clusterDb, newProteins, tmpFile, identity, memory, cores, diamondBin);
+				appendToFile(f, newProteins, newAccessions);
+			newAccessions = null;
+
+			System.out.println(">Aligning new vs old proteins using DIAMOND");
+			rL.setTime();
+			File oldDb = DiamondRunner.makedb(oldProteins, cores, diamondBin);
+			oldDb.deleteOnExit();
+			File tabFile1 = DiamondRunner.blastp(oldDb, newProteins, tmpFile, identity, memory, cores, diamondBin);
+			genusAliDatabase.addAlignmentTable("Genus" + "_markerTable", null, tabFile1, false);
+			tabFile1.delete();
+			oldDb.delete();
+			rL.getUptime();
+
+			System.out.println(">Aligning old vs new proteins using DIAMOND");
+			rL.setTime();
+			File newDb = DiamondRunner.makedb(newProteins, cores, diamondBin);
+			newDb.deleteOnExit();
+			File tabFile2 = DiamondRunner.blastp(newDb, oldProteins, tmpFile, identity, memory, cores, diamondBin);
+			genusAliDatabase.addAlignmentTable("Genus" + "_markerTable", null, tabFile2, false);
+			tabFile2.delete();
+			rL.getUptime();
+
+			System.out.println(">Aligning new vs new proteins using DIAMOND");
+			rL.setTime();
+			File tabFile3 = DiamondRunner.blastp(newDb, newProteins, tmpFile, identity, memory, cores, diamondBin);
+			genusAliDatabase.addAlignmentTable("Genus" + "_markerTable", null, tabFile3, false);
+			tabFile3.delete();
+			newDb.delete();
+			rL.getUptime();
+
+			oldProteins.delete();
 			newProteins.delete();
-			clusterDb.delete();
-
-			System.out.println(">Aligning all vs new proteins using DIAMOND");
-			File newClusteredProteins = new File(markerOutputFolder + File.separator + "newCluster.faa");
-			newClusteredProteins.createNewFile();
-			newClusteredProteins.deleteOnExit();
-			for (File f : markerOutputFolder.listFiles((dir, name) -> name.endsWith("_new.faa")))
-				appendToFile(f, newClusteredProteins);
-			File newClusterDb = newClusteredProteins.exists()
-					? DiamondRunner.makedb(newClusteredProteins, cores, diamondBin)
-					: null;
-			newClusterDb.deleteOnExit();
-			newClusteredProteins.delete();
-			File allProteins = new File(markerOutputFolder + File.separator + "allProteins.faa");
-			allProteins.createNewFile();
-			allProteins.deleteOnExit();
-			for (File f : faaFiles)
-				appendToFile(f, allProteins);
-			File tabFile2 = DiamondRunner.blastp(newClusterDb, allProteins, tmpFile, identity, memory, cores,
-					diamondBin);
-			allProteins.delete();
-			newClusterDb.delete();
-			System.out.println("Runtime: " + rL.getUptime());
-
-			System.out.println(">Processing DIAMOND result for " + faaFiles.size() + " genera");
-			List<Runnable> processingTabFileThreads = new ArrayList<>();
-			File[] tabFiles = { tabFile1, tabFile2 };
-			faaFilePointer = 0;
-			for (int i = 0; i < cores; i++)
-				processingTabFileThreads.add(new ProcessingTabFileThread(tabFiles, aliFolder, tmpFile, taxTree,
-						mappingDatabase, markerOutputFolder));
-			rL.runThreads(1, processingTabFileThreads, totalFileLength);
 
 			System.out.println(">Computing marker proteins for " + faaFiles.size() + " protein sets");
 			List<Runnable> selectMarkersThreads = new ArrayList<>();
@@ -115,10 +113,11 @@ public class MarkerManager {
 			// removing new files
 			for (Runnable t : collectNewProteinsThreads) {
 				List<File> toDelete = ((CollectNewProteinsThread) t).newFiles;
+				toDelete.addAll(((CollectNewProteinsThread) t).oldFiles);
 				toDelete.stream().forEach(f -> f.delete());
 			}
 
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 
@@ -161,7 +160,7 @@ public class MarkerManager {
 				try {
 					String genus = Formatter
 							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(aliFolder, "Genus", tmpFile);
 					try {
 						File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
 						new Selecting().run(genus, taxTree, mappingDatabase, alignmentDatabase, faaFile, outFile,
@@ -180,93 +179,12 @@ public class MarkerManager {
 
 	}
 
-	private class ProcessingTabFileThread implements Runnable {
-
-		private File[] tabFiles;
-		private File tmpFile, outFolder;
-		private String aliFolder;
-		private TaxTree taxTree;
-		private SQLMappingDatabase mappingDatabase;
-
-		public ProcessingTabFileThread(File[] tabFiles, String aliFolder, File tmpFile, TaxTree taxTree,
-				SQLMappingDatabase mappingDatabase, File outFolder) {
-			this.tabFiles = tabFiles;
-			this.aliFolder = aliFolder;
-			this.tmpFile = tmpFile;
-			this.taxTree = taxTree;
-			this.mappingDatabase = createMappingDatabase(mappingDatabase);
-			this.outFolder = outFolder;
-		}
-
-		@Override
-		public void run() {
-
-			File faaFile;
-			while ((faaFile = nextFaaFile()) != null) {
-				String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-				File tabFile = new File(outFolder + File.separator + genus + "_marker.tab");
-				tabFile.deleteOnExit();
-				try {
-					try (BufferedWriter writer = new BufferedWriter(new FileWriter(tabFile))) {
-						for (File tab : tabFiles) {
-							if (tab == null || !tab.exists() || tab.length() == 0)
-								continue;
-							try (BufferedReader buf = new BufferedReader(new FileReader(tab))) {
-								String line;
-								while ((line = buf.readLine()) != null) {
-									final String[] tokens = line.split("\t");
-									final String qacc = tokens[0];
-									final String g = getRank(mappingDatabase.getTaxIdByAcc(qacc), "genus");
-									if (g != null && g.equals(genus))
-										writer.write(line + "\n");
-								}
-							}
-						}
-					}
-					SQLAlignmentDatabase aliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
-					try {
-						aliDatabase.addAlignmentTable(genus + "_markerTable", null, tabFile, false);
-					} finally {
-						tabFile.delete();
-						aliDatabase.close();
-					}
-					rL.reportProgress(faaFile.length());
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-
-			mappingDatabase.close();
-			rL.countDown();
-
-		}
-
-		private String getRank(List<Integer> taxids, String rank) {
-			String name = null;
-			for (int taxid : taxids) {
-				TaxNode w = taxTree.getNode(taxid);
-				while (w != null) {
-					if (w.getRank().equals(rank)) {
-						if (name == null)
-							name = w.getName();
-						else if (!name.equals(w.getName()))
-							return null;
-						break;
-					}
-					w = w.getParent();
-				}
-			}
-			if (name != null)
-				return Formatter.removeNonAlphanumerics(name);
-			return null;
-		}
-	}
-
 	private class CollectNewProteinsThread implements Runnable {
 
 		private File tmpFile;
 		private String outFolder, aliFolder;
 		private List<File> newFiles = new ArrayList<>();
+		private List<File> oldFiles = new ArrayList<>();
 
 		public CollectNewProteinsThread(File tmpFile, String outFolder, String aliFolder) {
 			this.tmpFile = tmpFile;
@@ -282,17 +200,24 @@ public class MarkerManager {
 				try {
 					String genus = Formatter
 							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
-					SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
+					SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, "Genus", tmpFile);
 					try {
 						File newFile = new File(outFolder + File.separator + genus + "_new.faa");
 						newFile.createNewFile();
 						newFiles.add(newFile);
-						try (BufferedWriter writer = new BufferedWriter(new FileWriter(newFile))) {
+						File oldFile = new File(outFolder + File.separator + genus + "_old.faa");
+						oldFile.createNewFile();
+						oldFiles.add(oldFile);
+						try (BufferedWriter newWriter = new BufferedWriter(new FileWriter(newFile));
+								BufferedWriter oldWriter = new BufferedWriter(new FileWriter(oldFile))) {
 							ArrayList<FastaEntry> tokens = FastaReader.read(faaFile);
 							for (FastaEntry o : tokens) {
 								String acc = o.getName();
-								if (!sqlAliDatabase.containsAcc(acc, genus + "_markerTable"))
-									writer.write(">" + acc + "\n" + o.getSequence() + "\n");
+								String entry = ">" + acc + "\n" + o.getSequence() + "\n";
+								if (!sqlAliDatabase.containsAcc(acc, "Genus_markerTable"))
+									newWriter.write(entry);
+								else
+									oldWriter.write(entry);
 							}
 						}
 					} finally {
@@ -317,10 +242,14 @@ public class MarkerManager {
 		return new SQLAlignmentDatabase(aliFolder, genus, tmpFile);
 	}
 
-	private void appendToFile(File source, File target) throws IOException {
+	private void appendToFile(File source, File target, Set<String> addedAccession) throws IOException {
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(target, true))) {
-			for (FastaEntry token : FastaReader.read(source))
-				writer.write(">" + token.getName() + "\n" + token.getSequence() + "\n");
+			for (FastaEntry token : FastaReader.read(source)) {
+				if (!addedAccession.contains(token.getName())) {
+					addedAccession.add(token.getName());
+					writer.write(">" + token.getName() + "\n" + token.getSequence() + "\n");
+				}
+			}
 		}
 	}
 

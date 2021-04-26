@@ -8,6 +8,7 @@ import java.util.List;
 import mairaDatabase.refseq.RefseqManager;
 import mairaDatabase.refseq.utils.Formatter;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
+import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase.AlignmentInfo;
 import mairaDatabase.utils.FastaReader;
 import mairaDatabase.utils.FastaReader.FastaEntry;
 import mairaDatabase.utils.SQLMappingDatabase;
@@ -26,7 +27,6 @@ public class Selecting {
 		this.COV_THRESHOLD = MIN_COV;
 		this.ID_THRESHOLD = MIN_ID;
 		this.taxTree = taxTree;
-		String table = genus + "_markerTable";
 		List<FastaEntry> clusteringProteins = FastaReader.read(faaFile);
 		long time = System.currentTimeMillis();
 
@@ -35,14 +35,17 @@ public class Selecting {
 			try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
 				for (FastaEntry protein : clusteringProteins) {
 					String acc = protein.getName();
-					List<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(acc, table);
+					List<AlignmentInfo> alis = alignmentDatabase.getAlignments(acc, "Genus_markerTable");
 					boolean selectProtein = true;
 					if (protein.getSequenceLength() < RefseqManager.MIN_LENGTH)
 						selectProtein = false;
 					else if (selectedNodes > MIN_PROTEINS_SELECT) {
 						for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
 							String refGenus = getRank(mappingDatabase.getTaxIdByAcc(ali.getRef()), "genus");
-							if (refGenus != null && !refGenus.equals(genus) && ali.getIdentity() > ID_THRESHOLD
+							if (refGenus == null) {
+								selectProtein = false;
+								break;
+							} else if (!refGenus.equals(genus) && ali.getIdentity() > ID_THRESHOLD
 									&& (ali.getQueryCoverage() > COV_THRESHOLD
 											|| ali.getRefCoverage() > COV_THRESHOLD)) {
 								selectProtein = false;
