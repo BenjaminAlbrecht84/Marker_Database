@@ -53,7 +53,7 @@ public class Clustering {
 				List<AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
 				for (AlignmentInfo ali : alis) {
 					ClusterNode w = acc2node.get(ali.getRef());
-					if (w == null || w.isDominated())
+					if (w == null || w.isDominated() || w.isDominator())
 						continue;
 					boolean isSelfHit = ali.getQuery().equals(ali.getRef());
 					if (!isSelfHit && ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD) {
@@ -97,6 +97,7 @@ public class Clustering {
 		private int outDegree;
 		private SparseString acc;
 		private Pair<ClusterNode, AlignmentInfo> dominatedBy;
+		private boolean isDominator = false;
 
 		public ClusterNode(SparseString acc, int outDegree) {
 			this.acc = acc;
@@ -113,6 +114,7 @@ public class Clustering {
 		}
 
 		public void setDominatedBy(ClusterNode v, AlignmentInfo aliInfo) {
+			v.setDominator(true);
 			dominatedBy = new Pair<>(v, aliInfo);
 		}
 
@@ -122,6 +124,14 @@ public class Clustering {
 
 		public Pair<ClusterNode, AlignmentInfo> getDominatedBy() {
 			return dominatedBy;
+		}
+
+		public boolean isDominator() {
+			return isDominator;
+		}
+
+		public void setDominator(boolean isDominator) {
+			this.isDominator = isDominator;
 		}
 
 	}
