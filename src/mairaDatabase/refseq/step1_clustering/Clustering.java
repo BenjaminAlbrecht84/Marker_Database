@@ -56,7 +56,8 @@ public class Clustering {
 					if (w == null || w.isDominated() || w.isDominator())
 						continue;
 					boolean isSelfHit = ali.getQuery().equals(ali.getRef());
-					if (!isSelfHit && ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD) {
+					if (!isSelfHit && ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD
+							&& ali.getRefCoverage() > COV_THRESHOLD) {
 						w.setDominatedBy(v, ali);
 						selectedNodes--;
 					}
