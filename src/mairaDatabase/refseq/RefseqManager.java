@@ -23,7 +23,7 @@ public class RefseqManager {
 	public final static int[] MAX_PROTEINS_PER_GCF = { 100, 500, 1000 };
 	public final static int MIN_LENGTH = 100;
 
-	public void run(File src, File tmp, String aliDir, int cores, int memory, String[] genera, String diamondBin) {
+	public void run(File src, File tmp, String aliDir, int cores, double blockSize, String[] genera, String diamondBin) {
 
 		long time = System.currentTimeMillis();
 
@@ -42,10 +42,10 @@ public class RefseqManager {
 		String rank = "genus";
 		ClusterManager clusterManager = new ClusterManager();
 		clusterManager.runClustering(rank, srcPath, aliDir, proteinDownloadManager.getProteinFolder(), taxTree,
-				mappingDatabase, cores, memory, CLUSTER_MARKER_ID, CLUSTER_GENUS_ID, tmp, diamondBin);
+				mappingDatabase, cores, blockSize, CLUSTER_MARKER_ID, CLUSTER_GENUS_ID, tmp, diamondBin);
 		MarkerManager markerManager = new MarkerManager();
 		markerManager.runMarker(rank, srcPath, aliDir, clusterManager.getMarkerClusterOutputFolder(), taxTree,
-				mappingDatabase, cores, memory, MARKER_ID, tmp, diamondBin);
+				mappingDatabase, cores, blockSize, MARKER_ID, tmp, diamondBin);
 		FilterManager filterManager = new FilterManager();
 		filterManager.run(rank, srcPath, aliDir, tmpDir, markerManager.getMarkerOutputFolder(), taxTree,
 					mappingDatabase, MAX_PROTEINS_PER_GCF, CLUSTER_MARKER_ID, cores);
@@ -57,6 +57,7 @@ public class RefseqManager {
 		mairaDatabase.createFactorsTable(filterManager.getWeightFiles());
 		mairaDatabase.createProtCountsTable(proteinDownloadManager.getProteinCountsFile());
 		mairaDatabase.createAcc2DominatorsTable(clusterManager.getGenusDominationFile());
+		mairaDatabase.createSpecies2overlapTable(clusterManager.getSpeciesOverlapFile());
 
 		NewickTaxTreeWriter.run(srcFolder, mairaDatabase);
 		BashHelper.apply(srcPath, filterManager.getMarkerDatabase(), clusterManager.getGenusFolder());

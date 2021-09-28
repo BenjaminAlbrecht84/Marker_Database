@@ -24,7 +24,7 @@ public class Statistics {
 		double temp = 0;
 		for (double a : data)
 			temp += (a - mean) * (a - mean);
-		return temp / (data.size() - 1);
+		return temp / data.size();
 	}
 
 	public static double getStdDev(List<Double> data) {
@@ -44,6 +44,11 @@ public class Statistics {
 	}
 
 	public static double getMax(List<Double> data) {
+		Collections.sort(data);
+		return data.get(data.size() - 1);
+	}
+	
+	public static int getMaxFromIntegers(List<Integer> data) {
 		Collections.sort(data);
 		return data.get(data.size() - 1);
 	}

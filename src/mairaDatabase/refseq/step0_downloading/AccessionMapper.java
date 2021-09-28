@@ -45,8 +45,9 @@ public class AccessionMapper {
 
 	private List<File> faaFiles;
 	private int filePointer = 0;
-	private File mappingFile;
-	private File proteinCountsFile;
+	private File accMappingFile;
+	private File gcfMappingFile;
+	private File avgSizeMappingFile;
 
 	private Map<String, Integer> gcfToTaxID;
 	private Map<String, String> gcfToAssemblyLevel;
@@ -55,20 +56,22 @@ public class AccessionMapper {
 	public void run(String src, File downloadFolder, int cores, SQLMappingDatabase mappingDatabase, TaxTree taxTree)
 			throws IOException {
 
-		mappingFile = new File(src + File.separator + "acc2gcfs2taxid.tab");
+		accMappingFile = new File(src + File.separator + "acc2gcfs2taxid.tab");
+		gcfMappingFile = new File(src + File.separator + "gcf2size2taxid.tab");
 		proteinCounts = new ConcurrentHashMap<>();
 
 		gcfToTaxID = new AssemblyParser().getGcf2Taxid(src);
 		gcfToAssemblyLevel = new AssemblyParser().getGcfToAssembyLevel(src);
 
-		if (mappingFile.exists())
-			mappingFile.delete();
+		if (accMappingFile.exists())
+			accMappingFile.delete();
 
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(mappingFile, true));) {
-			System.out.println(">Creating mapping file");
+		try (BufferedWriter accWriter = new BufferedWriter(new FileWriter(accMappingFile, true));
+				BufferedWriter gcfWriter = new BufferedWriter(new FileWriter(gcfMappingFile, true));) {
+			System.out.println(">Creating acc/gcf mapping files");
 			List<Runnable> mappers = new ArrayList<>();
 			for (int i = 0; i < cores; i++)
-				mappers.add(new Mapper(writer, taxTree));
+				mappers.add(new Mapper(accWriter, gcfWriter, taxTree));
 			faaFiles = new ArrayList<>();
 			for (File dir : Objects.requireNonNull(downloadFolder.listFiles(pathname -> pathname.isDirectory()))) {
 				for (File f : Objects.requireNonNull(dir.listFiles((dir1, name) -> name.endsWith(".faa.gz"))))
@@ -77,8 +80,8 @@ public class AccessionMapper {
 			rL.runThreads(cores, mappers, faaFiles.size());
 		}
 
-		proteinCountsFile = new File(src + File.separator + "taxid2proteins.tab");
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(proteinCountsFile, true));) {
+		avgSizeMappingFile = new File(src + File.separator + "taxid2proteins.tab");
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(avgSizeMappingFile, true));) {
 			for (Integer taxid : proteinCounts.keySet()) {
 				for (AssemblyLevel a : AssemblyLevel.values()) {
 					if (proteinCounts.get(taxid).containsKey(a.getPriority())) {
@@ -92,7 +95,9 @@ public class AccessionMapper {
 		}
 		proteinCounts.clear();
 
-		mappingDatabase.createAcc2gcf2taxidTable(mappingFile);
+		mappingDatabase.createAcc2gcf2taxidTable(accMappingFile);
+		mappingDatabase.createGcf2size2taxidTable(gcfMappingFile);
+		mappingDatabase.createSpecies2sizeTable(avgSizeMappingFile);
 
 	}
 
@@ -103,20 +108,21 @@ public class AccessionMapper {
 	}
 
 	public File getMappingFile() {
-		return mappingFile;
+		return accMappingFile;
 	}
 
 	public File getProteinCountsFile() {
-		return proteinCountsFile;
+		return avgSizeMappingFile;
 	}
 
 	private class Mapper implements Runnable {
 
-		private BufferedWriter writer;
+		private BufferedWriter accWriter, gcfWriter;
 		private TaxTree taxTree;
 
-		public Mapper(BufferedWriter writer, TaxTree taxTree) {
-			this.writer = writer;
+		public Mapper(BufferedWriter accWriter, BufferedWriter gcfWriter, TaxTree taxTree) {
+			this.accWriter = accWriter;
+			this.gcfWriter = gcfWriter;
 			this.taxTree = taxTree;
 		}
 
@@ -124,25 +130,30 @@ public class AccessionMapper {
 		public void run() {
 			File faaFile;
 			while ((faaFile = nextFile()) != null) {
-				String searchID = "GCF_" + faaFile.getName().split("_")[1];
-				Integer taxid = gcfToTaxID.get(searchID);
+				String gcf = "GCF_" + faaFile.getName().split("_")[1];
+				Integer taxid = gcfToTaxID.get(gcf);
 				if (taxid != null) {
 					double proteinCounter = 0;
 					for (FastaEntry token : FastaReader.read(faaFile)) {
 						String acc = token.getName();
 						proteinCounter++;
 						try {
-							writer.write(acc + "\t" + searchID + "\t" + taxid + "\n");
+							accWriter.write(acc + "\t" + gcf + "\t" + taxid + "\n");
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
 					}
-					AssemblyLevel assLevel = getAssemblyLevel(searchID);
+					AssemblyLevel assLevel = getAssemblyLevel(gcf);
 					Integer speciesid = getRankTaxid(taxTree.getNode(taxid), "species");
 					if (speciesid != null) {
 						proteinCounts.putIfAbsent(speciesid, new ConcurrentHashMap<>());
 						proteinCounts.get(speciesid).putIfAbsent(assLevel.getPriority(), new ArrayList<>());
 						proteinCounts.get(speciesid).get(assLevel.getPriority()).add(proteinCounter);
+					}
+					try {
+						gcfWriter.write(gcf + "\t" + (int) proteinCounter + "\t" + taxid + "\n");
+					} catch (IOException e) {
+						e.printStackTrace();
 					}
 				}
 				rL.reportProgress(1);

@@ -125,11 +125,55 @@ public class SQLMairaDatabase {
 		}
 	}
 
+	public void createSpecies2overlapTable(File species2overlap) {
+		try {
+
+			System.out.println(">Creating SQL Table species2overlap");
+			rL.setTime();
+			stmt.execute("CREATE TABLE IF NOT EXISTS species2overlap (source INTEGER, target INTEGER, max_overlap INTEGER)");
+			stmt.execute("DELETE FROM species2overlap");
+			c.setAutoCommit(false);
+			int count = 0;
+			rL.setMaxProgress(species2overlap.length());
+			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO species2overlap VALUES (?, ?, ?);");
+					BufferedReader buf = new BufferedReader(new FileReader(species2overlap));) {
+				String line;
+				while ((line = buf.readLine()) != null) {
+					final String[] tokens = line.split("\t");
+					final int source = Integer.parseInt(tokens[0]);
+					final int target = Integer.parseInt(tokens[1]);
+					final int maxOverlap = Integer.parseInt(tokens[2]);
+					insertStmd.setInt(1, source);
+					insertStmd.setInt(2, target);
+					insertStmd.setInt(3, maxOverlap);
+					insertStmd.execute();
+					count++;
+					rL.reportProgress(line.length() + 1);
+				}
+			}
+			c.commit();
+			c.setAutoCommit(true);
+			System.out.println(String.format("Table species2overlap: added %,d items", count));
+			rL.reportFinish();
+			rL.reportRuntime();
+
+			System.out.println(">Indexing SQL Table species2overlap");
+			rL.setTime();
+			stmt.execute("DROP INDEX IF EXISTS species2overlapIndex");
+			stmt.execute("CREATE INDEX species2overlapIndex ON species2overlap (source, target)");
+			rL.reportFinish();
+			rL.reportRuntime();
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
 	public void createFactorsTable(Map<Integer, File> weightFiles) {
 		try {
 
 			for (Entry<Integer, File> e : weightFiles.entrySet()) {
-				
+
 				int n = e.getKey();
 				File weightFile = e.getValue();
 

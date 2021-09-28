@@ -20,9 +20,9 @@ public class DiamondRunner {
 		return new File(db);
 	}
 
-	public static File blastp(File dbFile, File faaFile, File tmpFile, int identity, int memory, int cores,
+	public static File blastp(File dbFile, File faaFile, File tmpFile, int identity, double blockSize, int cores,
 			String diamondBin) {
-		double b = (double) memory / 7.;
+		double b = blockSize;
 		String out = faaFile.getAbsolutePath().replaceAll("\\.faa", ".tab");
 		String db = dbFile.getAbsolutePath(), in = faaFile.getAbsolutePath();
 		String cmd = diamondBin + " blastp -d " + db + " -q " + in + " --shape-mask 111101011101111 -b " + b

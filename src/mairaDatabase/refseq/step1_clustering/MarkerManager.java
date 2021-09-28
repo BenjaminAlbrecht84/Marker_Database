@@ -33,7 +33,7 @@ public class MarkerManager {
 	private Set<String> newAccessions = new HashSet<>();
 
 	public void runMarker(String rank, String srcPath, String aliFolder, File markerClusterFolder, TaxTree taxTree,
-			SQLMappingDatabase mappingDatabase, int cores, int memory, int identity, File tmpFile, String diamondBin) {
+			SQLMappingDatabase mappingDatabase, int cores, double blockSize, int identity, File tmpFile, String diamondBin) {
 
 		try {
 
@@ -76,7 +76,7 @@ public class MarkerManager {
 			rL.setTime();
 			File oldDb = DiamondRunner.makedb(oldProteins, cores, diamondBin);
 			oldDb.deleteOnExit();
-			File tabFile1 = DiamondRunner.blastp(oldDb, newProteins, tmpFile, identity, memory, cores, diamondBin);
+			File tabFile1 = DiamondRunner.blastp(oldDb, newProteins, tmpFile, identity, blockSize, cores, diamondBin);
 			genusAliDatabase.addAlignmentTable("Genus" + "_markerTable", null, tabFile1, false);
 			tabFile1.delete();
 			oldDb.delete();
@@ -86,14 +86,14 @@ public class MarkerManager {
 			rL.setTime();
 			File newDb = DiamondRunner.makedb(newProteins, cores, diamondBin);
 			newDb.deleteOnExit();
-			File tabFile2 = DiamondRunner.blastp(newDb, oldProteins, tmpFile, identity, memory, cores, diamondBin);
+			File tabFile2 = DiamondRunner.blastp(newDb, oldProteins, tmpFile, identity, blockSize, cores, diamondBin);
 			genusAliDatabase.addAlignmentTable("Genus" + "_markerTable", null, tabFile2, false);
 			tabFile2.delete();
 			rL.getUptime();
 
 			System.out.println(">Aligning new vs new proteins using DIAMOND");
 			rL.setTime();
-			File tabFile3 = DiamondRunner.blastp(newDb, newProteins, tmpFile, identity, memory, cores, diamondBin);
+			File tabFile3 = DiamondRunner.blastp(newDb, newProteins, tmpFile, identity, blockSize, cores, diamondBin);
 			genusAliDatabase.addAlignmentTable("Genus" + "_markerTable", null, tabFile3, false);
 			tabFile3.delete();
 			newDb.delete();

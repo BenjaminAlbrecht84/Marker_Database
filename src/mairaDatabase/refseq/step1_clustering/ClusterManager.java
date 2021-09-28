@@ -24,7 +24,7 @@ import mairaDatabase.utils.taxTree.TaxTree;
 public class ClusterManager {
 
 	private ResourceLoader rL = new ResourceLoader();
-	private File genusDominationFile;
+	private File genusDominationFile, speciesOverlapFile;
 	private File genusFolder;
 	private File markerClusterOutputFolder;
 
@@ -32,7 +32,7 @@ public class ClusterManager {
 	private int faaFilePointer = 0;
 
 	public void runClustering(String rank, String srcPath, String aliFolder, File proteinFolder, TaxTree taxTree,
-			SQLMappingDatabase mappingDatabase, int cores, int memory, int markerIdentity, int genusIdentity,
+			SQLMappingDatabase mappingDatabase, int cores, double blockSize, int markerIdentity, int genusIdentity,
 			File tmpFile, String diamondBin) {
 
 		try {
@@ -61,18 +61,23 @@ public class ClusterManager {
 			List<Runnable> alignProteinsThreads = new ArrayList<>();
 			faaFilePointer = 0;
 			for (int i = 0; i < cores; i++)
-				alignProteinsThreads.add(new AlignProteinsThread(tmpFile, aliFolder, cores, memory, markerIdentity,
+				alignProteinsThreads.add(new AlignProteinsThread(tmpFile, aliFolder, cores, blockSize, markerIdentity,
 						mappingDatabase, diamondBin));
 			rL.runThreads(1, alignProteinsThreads, totalFileLength);
 
 			System.out.println(
 					">Clustering for marker db " + faaFiles.size() + " protein " + ((n == 1) ? "set" : "sets"));
 			List<Runnable> clusterProteinsForMarkerDbThread = new ArrayList<>();
+			speciesOverlapFile = new File(srcPath + File.separator + "species2overlap.tab");
+			speciesOverlapFile.delete(); 
 			faaFilePointer = 0;
-			for (int i = 0; i < cores; i++)
-				clusterProteinsForMarkerDbThread.add(new ClusterProteinsThread(tmpFile, markerClusterOutputFolder, null,
-						aliFolder, markerIdentity, mappingDatabase, taxTree, ClusteringMode.MARKER_DB));
-			rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
+			try (BufferedWriter overlapWriter = new BufferedWriter(new FileWriter(speciesOverlapFile))) {
+				for (int i = 0; i < cores; i++)
+					clusterProteinsForMarkerDbThread
+							.add(new ClusterProteinsThread(tmpFile, markerClusterOutputFolder, overlapWriter, null,
+									aliFolder, markerIdentity, mappingDatabase, taxTree, ClusteringMode.MARKER_DB));
+				rL.runThreads(cores, clusterProteinsForMarkerDbThread, totalFileLength);
+			}
 
 			if (rank.equals("genus")) {
 				System.out.println(
@@ -83,8 +88,9 @@ public class ClusterManager {
 				try (BufferedWriter dominationWriter = new BufferedWriter(new FileWriter(genusDominationFile))) {
 					faaFilePointer = 0;
 					for (int i = 0; i < cores; i++)
-						clusterProteinsForGenusDbThread.add(new ClusterProteinsThread(tmpFile, null, dominationWriter,
-								aliFolder, genusIdentity, mappingDatabase, taxTree, ClusteringMode.GENUS_DB));
+						clusterProteinsForGenusDbThread
+								.add(new ClusterProteinsThread(tmpFile, null, null, dominationWriter, aliFolder,
+										genusIdentity, mappingDatabase, taxTree, ClusteringMode.GENUS_DB));
 					rL.runThreads(cores, clusterProteinsForGenusDbThread, totalFileLength);
 				}
 			}
@@ -117,6 +123,10 @@ public class ClusterManager {
 
 	public File getMarkerClusterOutputFolder() {
 		return markerClusterOutputFolder;
+	}
+
+	public File getSpeciesOverlapFile() {
+		return speciesOverlapFile;
 	}
 
 	private class CollectNewProteinsThread implements Runnable {
@@ -172,16 +182,17 @@ public class ClusterManager {
 
 		private File tmpFile;
 		private String aliFolder;
-		private int cores, memory, identity;
+		private int cores, identity;
+		private double blockSize;
 		private SQLMappingDatabase mappingDatabase;
 		private String diamondBin;
 
-		public AlignProteinsThread(File tmpFile, String aliFolder, int cores, int memory, int identity,
+		public AlignProteinsThread(File tmpFile, String aliFolder, int cores, double blockSize, int identity,
 				SQLMappingDatabase mappingDatabase, String diamondBin) {
 			this.tmpFile = tmpFile;
 			this.aliFolder = aliFolder;
 			this.cores = cores;
-			this.memory = memory;
+			this.blockSize = blockSize;
 			this.identity = identity;
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
 			this.diamondBin = diamondBin;
@@ -203,14 +214,14 @@ public class ClusterManager {
 					try {
 						if (newFile.exists() && newFile.length() > 0) {
 							File db = DiamondRunner.makedb(faaFile, cores, diamondBin);
-							File tabFile1 = DiamondRunner.blastp(db, newFile, tmpFile, identity, memory, cores,
+							File tabFile1 = DiamondRunner.blastp(db, newFile, tmpFile, identity, blockSize, cores,
 									diamondBin);
 							alignmentDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile1, false);
 							db.delete();
 							tabFile1.delete();
 
 							File dbNew = DiamondRunner.makedb(newFile, cores, diamondBin);
-							File tabFile2 = DiamondRunner.blastp(dbNew, oldFile, tmpFile, identity, memory, cores,
+							File tabFile2 = DiamondRunner.blastp(dbNew, oldFile, tmpFile, identity, blockSize, cores,
 									diamondBin);
 							alignmentDatabase.addAlignmentTable(genus + "_clusterTable", null, tabFile2, false);
 							dbNew.delete();
@@ -235,7 +246,7 @@ public class ClusterManager {
 
 	private class ClusterProteinsThread implements Runnable {
 
-		private BufferedWriter dominationWriter;
+		private BufferedWriter dominationWriter, overlapWriter;
 		private String aliFolder, outFolder;
 		private File tmpFile;
 		private int identity;
@@ -243,11 +254,13 @@ public class ClusterManager {
 		private ClusteringMode mode;
 		private TaxTree taxTree;
 
-		public ClusterProteinsThread(File tmpFile, File outFolder, BufferedWriter dominationWriter, String aliFolder,
-				int identity, SQLMappingDatabase mappingDatabase, TaxTree taxTree, ClusteringMode mode) {
+		public ClusterProteinsThread(File tmpFile, File outFolder, BufferedWriter overlapWriter,
+				BufferedWriter dominationWriter, String aliFolder, int identity, SQLMappingDatabase mappingDatabase,
+				TaxTree taxTree, ClusteringMode mode) {
 			this.outFolder = outFolder != null ? outFolder.getAbsolutePath() : null;
 			this.tmpFile = tmpFile;
 			this.dominationWriter = dominationWriter;
+			this.overlapWriter = overlapWriter;
 			this.identity = identity;
 			this.aliFolder = aliFolder;
 			this.mappingDatabase = createMappingDatabase(mappingDatabase);
@@ -268,13 +281,14 @@ public class ClusterManager {
 					}
 					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(aliFolder, genus, tmpFile);
 					try {
-						String fileName = mode == ClusteringMode.MARKER_DB
+						String proteinFileName = mode == ClusteringMode.MARKER_DB
 								? faaFile.getName().replaceAll("\\.faa", "_clustered.faa")
 								: faaFile.getName();
-						File proteinOutFile = new File(outFolder + File.separator + fileName);
+						File proteinOutFile = new File(outFolder + File.separator + proteinFileName);
 						proteinOutFile.delete();
-						new Clustering().run(genus, alignmentDatabase, mappingDatabase, taxTree, faaFile, proteinOutFile,
-								dominationWriter, identity, mode);
+						proteinOutFile.delete();
+						new Clustering().run(genus, alignmentDatabase, mappingDatabase, taxTree, faaFile,
+								proteinOutFile, overlapWriter, dominationWriter, identity, mode);
 					} finally {
 						alignmentDatabase.close();
 					}
