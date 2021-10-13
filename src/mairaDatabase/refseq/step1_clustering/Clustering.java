@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import jloda.util.Pair;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
@@ -50,7 +51,7 @@ public class Clustering {
 		clusterNodes.stream().forEach(v -> acc2node.put(v.getAcc(), v));
 		Collections.sort(clusterNodes);
 
-		Map<String, GCFOverlap> gcf2overlap = new HashMap<>();
+		Map<String, GCFOverlap> gcf2overlap = new TreeMap<>();
 		int selectedNodes = clusterNodes.size();
 		for (ClusterNode v : clusterNodes) {
 			if (!v.isDominated()) {
@@ -132,7 +133,7 @@ public class Clustering {
 	public class GCFOverlap {
 
 		private String gcf;
-		private Map<String, Integer> overlaps = new HashMap<String, Integer>();
+		private Map<String, Integer> overlaps = new TreeMap<String, Integer>();
 
 		public GCFOverlap(String gcf) {
 			this.gcf = gcf;
