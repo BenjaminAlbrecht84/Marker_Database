@@ -11,21 +11,21 @@ public class AssemblyParser {
 
 		HashMap<Integer, ArrayList<String>> taxidToFTP = new HashMap<>();
 		try {
-			BufferedReader buf = new BufferedReader(
-					new FileReader(new File(src + File.separator + "assembly_summary_refseq.txt")));
-			String l;
-			while ((l = buf.readLine()) != null) {
-				if (!l.startsWith("#")) {
-					String[] split = l.split("\t");
-					int taxID = Integer.parseInt(split[5]);
-					String ftp = split[19];
-					if (ftp.startsWith("ftp")) {
-						taxidToFTP.putIfAbsent(taxID, new ArrayList<String>());
-						taxidToFTP.get(taxID).add(ftp);
+			try(BufferedReader buf = new BufferedReader(
+					new FileReader(new File(src + File.separator + "assembly_summary_refseq.txt")))){
+				String l;
+				while ((l = buf.readLine()) != null) {
+					if (!l.startsWith("#")) {
+						String[] split = l.split("\t");
+						int taxID = Integer.parseInt(split[5]);
+						String ftp = split[19];
+						if (ftp.startsWith("https://ftp")) {
+							taxidToFTP.putIfAbsent(taxID, new ArrayList<String>());
+							taxidToFTP.get(taxID).add(ftp);
+						}
 					}
 				}
 			}
-			buf.close();
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -81,7 +81,7 @@ public class AssemblyParser {
 
 		return gcfToYear;
 	}
-	
+
 	public Map<String, String> getGcfToAssembyLevel(String src) {
 
 		HashMap<String, String> gcfToAssemblyLevel = new HashMap<>();
