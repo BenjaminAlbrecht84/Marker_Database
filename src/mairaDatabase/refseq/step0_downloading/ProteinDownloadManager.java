@@ -52,8 +52,9 @@ public class ProteinDownloadManager {
 			ftpLinks = new ArrayList<>();
 			for (TaxNode v : taxTree.getNodes()) {
 				String genus = getRank(v, "genus");
-				if (taxidToFTP.containsKey(v.getTaxid()) && isBacterialOrArchaeaNode(v) && genus != null
-						&& (genusList == null || genusList.contains(genus))) {
+				String species = getRank(v, "species");
+				if (taxidToFTP.containsKey(v.getTaxid()) && isBacterialOrArchaeaNode(v) && genus != null &&
+						species != null && (genusList == null || genusList.contains(genus))) {
 					if (taxidToFTP.containsKey(v.getTaxid())) {
 						v.setInfo(taxidToFTP.get(v.getTaxid()));
 						taxidToFTP.get(v.getTaxid()).stream()
