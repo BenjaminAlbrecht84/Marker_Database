@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import mairaDatabase.refseq.RefseqManager;
 import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase;
+import mairaDatabase.refseq.utils.aliHelper.SQLAlignmentDatabase.AlignmentInfo;
 import mairaDatabase.utils.FastaReader;
 import mairaDatabase.utils.SQLMappingDatabase;
 import mairaDatabase.utils.SparseString;
@@ -115,9 +116,9 @@ public class Filtering {
 	}
 
 	private Set<String> getCoveredGenomes(MarkerNode v, Map<String, MarkerNode> acc2node) {
-		List<SQLAlignmentDatabase.AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
+		List<AlignmentInfo> alis = alignmentDatabase.getAlignments(v.getAcc(), table);
 		Set<String> coveredGenomes = new HashSet<>();
-		for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
+		for (AlignmentInfo ali : alis) {
 			if (ali.getIdentity() > ID_THRESHOLD && ali.getQueryCoverage() > COV_THRESHOLD) {
 				for (String gcf : mappingDatabase.getGCFByAcc(ali.getRef()))
 					coveredGenomes.add(gcf);

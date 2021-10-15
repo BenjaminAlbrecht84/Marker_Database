@@ -94,9 +94,9 @@ public class AccessionMapper {
 			}
 		}
 		proteinCounts.clear();
-
-		mappingDatabase.createAcc2gcf2taxidTable(accMappingFile);
+		
 		mappingDatabase.createGcf2size2taxidTable(gcfMappingFile);
+		mappingDatabase.createAcc2gcf2taxidTable(accMappingFile);
 		mappingDatabase.createSpecies2sizeTable(avgSizeMappingFile);
 
 	}
@@ -133,6 +133,9 @@ public class AccessionMapper {
 				String gcf = "GCF_" + faaFile.getName().split("_")[1];
 				Integer taxid = gcfToTaxID.get(gcf);
 				if (taxid != null) {
+					TaxNode v = taxTree.getNode(taxid);
+					int speciesId = getRankTaxid(v, "species");
+					int genusId = getRankTaxid(v, "genus");
 					double proteinCounter = 0;
 					for (FastaEntry token : FastaReader.read(faaFile)) {
 						String acc = token.getName();
@@ -144,14 +147,14 @@ public class AccessionMapper {
 						}
 					}
 					AssemblyLevel assLevel = getAssemblyLevel(gcf);
-					Integer speciesid = getRankTaxid(taxTree.getNode(taxid), "species");
-					if (speciesid != null) {
-						proteinCounts.putIfAbsent(speciesid, new ConcurrentHashMap<>());
-						proteinCounts.get(speciesid).putIfAbsent(assLevel.getPriority(), new ArrayList<>());
-						proteinCounts.get(speciesid).get(assLevel.getPriority()).add(proteinCounter);
+					if (speciesId != -1) {
+						proteinCounts.putIfAbsent(speciesId, new ConcurrentHashMap<>());
+						proteinCounts.get(speciesId).putIfAbsent(assLevel.getPriority(), new ArrayList<>());
+						proteinCounts.get(speciesId).get(assLevel.getPriority()).add(proteinCounter);
 					}
 					try {
-						gcfWriter.write(gcf + "\t" + (int) proteinCounter + "\t" + taxid + "\n");
+						gcfWriter.write(gcf + "\t" + (int) proteinCounter + "\t" + taxid + "\t" + speciesId + "\t"
+								+ genusId + "\n");
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
@@ -170,14 +173,14 @@ public class AccessionMapper {
 			return AssemblyLevel.UNKNOWN;
 		}
 
-		private Integer getRankTaxid(TaxNode v, String rank) {
+		private int getRankTaxid(TaxNode v, String rank) {
 			TaxNode w = v;
 			while (w != null && w.getRank() != null) {
 				if (w.getRank().equals(rank))
 					return w.getTaxid();
 				w = w.getParent();
 			}
-			return null;
+			return -1;
 		}
 
 	}

@@ -115,8 +115,8 @@ public class SQLMairaDatabase {
 
 			System.out.println(">Indexing SQL Table acc2taxids");
 			rL.setTime();
-			stmt.execute("DROP INDEX IF EXISTS acc2taxidIndex");
-			stmt.execute("CREATE INDEX acc2taxidIndex ON acc2taxids (acc)");
+			stmt.execute("DROP INDEX IF EXISTS acc2taxidsIndex");
+			stmt.execute("CREATE INDEX acc2taxidsIndex ON acc2taxids (acc)");
 			rL.reportFinish();
 			rL.reportRuntime();
 
@@ -125,27 +125,27 @@ public class SQLMairaDatabase {
 		}
 	}
 
-	public void createSpecies2overlapTable(File species2overlap) {
+	public void createSpecies2disjointTable(File species2disjoint) {
 		try {
 
-			System.out.println(">Creating SQL Table species2overlap");
+			System.out.println(">Creating SQL Table species2disjoint");
 			rL.setTime();
-			stmt.execute("CREATE TABLE IF NOT EXISTS species2overlap (source INTEGER, target INTEGER, max_overlap INTEGER)");
-			stmt.execute("DELETE FROM species2overlap");
+			stmt.execute("CREATE TABLE IF NOT EXISTS species2disjoint (source INTEGER, target INTEGER, min_disjoint DECIMAL)");
+			stmt.execute("DELETE FROM species2disjoint");
 			c.setAutoCommit(false);
 			int count = 0;
-			rL.setMaxProgress(species2overlap.length());
-			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO species2overlap VALUES (?, ?, ?);");
-					BufferedReader buf = new BufferedReader(new FileReader(species2overlap));) {
+			rL.setMaxProgress(species2disjoint.length());
+			try (PreparedStatement insertStmd = c.prepareStatement("INSERT INTO species2disjoint VALUES (?, ?, ?);");
+					BufferedReader buf = new BufferedReader(new FileReader(species2disjoint));) {
 				String line;
 				while ((line = buf.readLine()) != null) {
 					final String[] tokens = line.split("\t");
 					final int source = Integer.parseInt(tokens[0]);
 					final int target = Integer.parseInt(tokens[1]);
-					final int maxOverlap = Integer.parseInt(tokens[2]);
+					final double minDisjointPerc = Double.parseDouble(tokens[2]);
 					insertStmd.setInt(1, source);
 					insertStmd.setInt(2, target);
-					insertStmd.setInt(3, maxOverlap);
+					insertStmd.setDouble(3, minDisjointPerc);
 					insertStmd.execute();
 					count++;
 					rL.reportProgress(line.length() + 1);
@@ -153,14 +153,14 @@ public class SQLMairaDatabase {
 			}
 			c.commit();
 			c.setAutoCommit(true);
-			System.out.println(String.format("Table species2overlap: added %,d items", count));
+			System.out.println(String.format("Table species2disjoint: added %,d items", count));
 			rL.reportFinish();
 			rL.reportRuntime();
 
-			System.out.println(">Indexing SQL Table species2overlap");
+			System.out.println(">Indexing SQL Table species2disjoint");
 			rL.setTime();
-			stmt.execute("DROP INDEX IF EXISTS species2overlapIndex");
-			stmt.execute("CREATE INDEX species2overlapIndex ON species2overlap (source, target)");
+			stmt.execute("DROP INDEX IF EXISTS sspecies2disjointIndex");
+			stmt.execute("CREATE INDEX species2disjointIndex ON species2disjoint (source, target)");
 			rL.reportFinish();
 			rL.reportRuntime();
 

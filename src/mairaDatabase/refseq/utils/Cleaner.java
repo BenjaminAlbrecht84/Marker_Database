@@ -21,7 +21,7 @@ public class Cleaner {
 				f.delete();
 		}
 		database.delete();
-		
+
 		// deleting folders
 		FileUtils.deleteDirectory(src.getAbsolutePath() + File.separator + "taxdump");
 		

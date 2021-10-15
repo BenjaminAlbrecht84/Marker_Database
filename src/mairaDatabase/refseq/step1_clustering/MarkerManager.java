@@ -33,7 +33,8 @@ public class MarkerManager {
 	private Set<String> newAccessions = new HashSet<>();
 
 	public void runMarker(String rank, String srcPath, String aliFolder, File markerClusterFolder, TaxTree taxTree,
-			SQLMappingDatabase mappingDatabase, int cores, double blockSize, int identity, File tmpFile, String diamondBin) {
+			SQLMappingDatabase mappingDatabase, int cores, double blockSize, int identity, File tmpFile,
+			String diamondBin) {
 
 		try {
 
@@ -158,11 +159,12 @@ public class MarkerManager {
 			File faaFile;
 			while ((faaFile = nextFaaFile()) != null) {
 				try {
-					String genus = Formatter
-							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
+					String genus = Formatter.removeNonAlphanumerics(
+							faaFile.getName().split("\\-")[1].replaceAll("_clustered\\.faa", ""));
+					int genusId = Integer.parseInt(faaFile.getName().split("\\-")[0]);
 					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(aliFolder, "Genus", tmpFile);
 					try {
-						File outFile = new File(outFolder + File.separator + genus + "_marker.faa");
+						File outFile = new File(outFolder + File.separator + genusId + "-" + genus + "_marker.faa");
 						new Selecting().run(genus, taxTree, mappingDatabase, alignmentDatabase, faaFile, outFile,
 								identity, identity);
 					} finally {
@@ -198,8 +200,8 @@ public class MarkerManager {
 			File faaFile;
 			while ((faaFile = nextFaaFile()) != null) {
 				try {
-					String genus = Formatter
-							.removeNonAlphanumerics(faaFile.getName().replaceAll("_clustered\\.faa", ""));
+					String genus = Formatter.removeNonAlphanumerics(
+							faaFile.getName().split("\\-")[1].replaceAll("_clustered\\.faa", ""));
 					SQLAlignmentDatabase sqlAliDatabase = createAlignmentDatabase(aliFolder, "Genus", tmpFile);
 					try {
 						File newFile = new File(outFolder + File.separator + genus + "_new.faa");
@@ -214,7 +216,7 @@ public class MarkerManager {
 							for (FastaEntry o : tokens) {
 								String acc = o.getName();
 								String entry = ">" + acc + "\n" + o.getSequence() + "\n";
-								if (!sqlAliDatabase.containsAcc(acc, "Genus_markerTable"))
+								if (!sqlAliDatabase.containsAcc(acc))
 									newWriter.write(entry);
 								else
 									oldWriter.write(entry);

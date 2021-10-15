@@ -12,7 +12,7 @@ module MAIRA_database {
 	exports mairaDatabase.refseq.step1_clustering;
 
 	requires java.logging;
-	requires java.sql;
+	requires transitive java.sql;
 	requires transitive jloda;
 	
 }

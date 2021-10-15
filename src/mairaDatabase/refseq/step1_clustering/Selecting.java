@@ -40,7 +40,7 @@ public class Selecting {
 					if (protein.getSequenceLength() < RefseqManager.MIN_LENGTH)
 						selectProtein = false;
 					else if (selectedNodes > MIN_PROTEINS_SELECT) {
-						for (SQLAlignmentDatabase.AlignmentInfo ali : alis) {
+						for (AlignmentInfo ali : alis) {
 							String refGenus = getRank(mappingDatabase.getTaxIdByAcc(ali.getRef()), "genus");
 							if (refGenus == null) {
 								selectProtein = false;

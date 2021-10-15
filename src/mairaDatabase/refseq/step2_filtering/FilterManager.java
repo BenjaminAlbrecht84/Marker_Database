@@ -106,7 +106,7 @@ public class FilterManager {
 			File faaFile;
 			while ((faaFile = nextFaaFile()) != null) {
 				try {
-					String genus = Formatter.removeNonAlphanumerics(faaFile.getName().replaceAll("_marker\\.faa", ""));
+					String genus = Formatter.removeNonAlphanumerics(faaFile.getName().split("\\-")[1].replaceAll("_marker\\.faa", ""));
 					SQLAlignmentDatabase alignmentDatabase = createAlignmentDatabase(genus);
 					try {
 						new Filtering().run(faaFile, genus, factorWriter, markerWriter, taxTree, mappingDatabase,

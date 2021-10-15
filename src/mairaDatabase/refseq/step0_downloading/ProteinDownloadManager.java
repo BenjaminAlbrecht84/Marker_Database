@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jloda.util.Pair;
+import jloda.util.Triplet;
 import mairaDatabase.refseq.utils.AssemblyParser;
 import mairaDatabase.refseq.utils.Downloader;
 import mairaDatabase.utils.FastaReader;
@@ -27,9 +28,9 @@ public class ProteinDownloadManager {
 	private ResourceLoader rL = new ResourceLoader();
 	private int downloadThreads = 1;
 	private List<Runnable> threads;
-	
+
 	private File proteinFolder;
-	private List<Pair<String, String>> ftpLinks;
+	private List<Triplet<String, String, Integer>> ftpLinks;
 	private int ftpPointer = 0;
 	private File[] proteinDirs;
 	private int dirPointer = 0;
@@ -52,12 +53,14 @@ public class ProteinDownloadManager {
 			ftpLinks = new ArrayList<>();
 			for (TaxNode v : taxTree.getNodes()) {
 				String genus = getRank(v, "genus");
+				String species = getRank(v, "species");
 				if (taxidToFTP.containsKey(v.getTaxid()) && isBacterialOrArchaeaNode(v) && genus != null
-						&& (genusList == null || genusList.contains(genus))) {
+						&& species != null && (genusList == null || genusList.contains(genus))) {
 					if (taxidToFTP.containsKey(v.getTaxid())) {
 						v.setInfo(taxidToFTP.get(v.getTaxid()));
+						int genusId = getRankId(v, "genus");
 						taxidToFTP.get(v.getTaxid()).stream()
-								.forEach(ftp -> ftpLinks.add(new Pair<String, String>(ftp, genus)));
+								.forEach(ftp -> ftpLinks.add(new Triplet<>(ftp, genus, genusId)));
 						v.reportFTPLeaf();
 					}
 				}
@@ -186,7 +189,7 @@ public class ProteinDownloadManager {
 		return false;
 	}
 
-	private synchronized List<Pair<String, String>> nextFTPLinks() {
+	private synchronized List<Triplet<String, String, Integer>> nextFTPLinks() {
 		if (ftpPointer < ftpLinks.size()) {
 			int from = ftpPointer;
 			int to = Math.min(ftpPointer + 100, ftpLinks.size());
@@ -211,13 +214,14 @@ public class ProteinDownloadManager {
 
 			try {
 
-				List<Pair<String, String>> ftpLinks;
+				List<Triplet<String, String, Integer>> ftpLinks;
 				while ((ftpLinks = nextFTPLinks()) != null) {
 
-					for (Pair<String, String> ftpLink : ftpLinks) {
-						
+					for (Triplet<String, String, Integer> ftpLink : ftpLinks) {
+
 						String ftp = ftpLink.getFirst();
 						String genus = ftpLink.getSecond();
+						int genusId = ftpLink.getThird();
 
 						boolean isReadable = false;
 						while (!isReadable) {
@@ -225,7 +229,8 @@ public class ProteinDownloadManager {
 							String[] split = ftp.split("/");
 							String outFile = split[split.length - 1] + "_protein.ftp";
 							String remoteFaaFile = split[split.length - 1] + "_protein.faa.gz";
-							File localFolder = new File(proteinFolder + File.separator + genus.replaceAll("\\s+", "_"));
+							File localFolder = new File(
+									proteinFolder + File.separator + genusId + "-" + genus.replaceAll("\\s+", "_"));
 							if (!proteinToFile.containsKey(remoteFaaFile)) {
 								localFolder.mkdir();
 								Downloader.getFtpFile(ftp, remoteFaaFile, localFolder, outFile);
@@ -250,13 +255,13 @@ public class ProteinDownloadManager {
 				rL.countDown();
 				e.printStackTrace();
 			}
-			
+
 			rL.countDown();
 
 		}
 
 	}
-	
+
 	public File getProteinFolder() {
 		return proteinFolder;
 	}
@@ -266,6 +271,16 @@ public class ProteinDownloadManager {
 		while (w != null && w.getRank() != null) {
 			if (w.getRank().equals(rank))
 				return w.getName();
+			w = w.getParent();
+		}
+		return null;
+	}
+
+	private Integer getRankId(TaxNode v, String rank) {
+		TaxNode w = v;
+		while (w != null && w.getRank() != null) {
+			if (w.getRank().equals(rank))
+				return w.getTaxid();
 			w = w.getParent();
 		}
 		return null;
